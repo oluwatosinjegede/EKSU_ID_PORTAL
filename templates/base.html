@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}University ID System{% endblock %}</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+
+<!-- NAVBAR -->
+<nav class="bg-blue-700 text-white">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold">University ID Portal</h1>
+
+        {% if user.is_authenticated %}
+            <div class="flex gap-4 items-center">
+                <span class="text-sm">{{ user.username }}</span>
+                <a href="{% url 'logout' %}" class="bg-red-500 px-3 py-1 rounded hover:bg-red-600">
+                    Logout
+                </a>
+            </div>
+        {% else %}
+            <a href="{% url 'login' %}" class="bg-white text-blue-700 px-4 py-2 rounded font-semibold">
+                Login
+            </a>
+        {% endif %}
+    </div>
+</nav>
+
+<!-- PAGE CONTENT -->
+<main class="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
+    {% block content %}{% endblock %}
+</main>
+
+<!-- FOOTER -->
+<footer class="bg-gray-900 text-gray-300 text-center py-4 text-sm">
+    © {{ year|default:2026 }} University ID Card System
+</footer>
+
+</body>
+</html>

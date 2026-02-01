@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Apply for ID{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto bg-white p-8 rounded-xl shadow">
+    <h2 class="text-2xl font-bold mb-6">Apply for ID Card</h2>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium">Passport Photograph</label>
+            <input type="file" name="passport" required>
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-sm font-medium">Signature</label>
+            <input type="file" name="signature" required>
+        </div>
+
+        <button class="w-full bg-blue-700 text-white py-3 rounded font-semibold">
+            Submit Application
+        </button>
+    </form>
+</div>
+{% endblock %}

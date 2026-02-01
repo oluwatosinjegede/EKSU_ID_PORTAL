@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Verify ID{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto bg-white p-8 rounded shadow text-center">
+
+{% if valid %}
+    <h2 class="text-2xl font-bold text-green-600 mb-4">ID Valid</h2>
+    <p><strong>Matric Number:</strong> {{ student.matric_number }}</p>
+    <p><strong>Department:</strong> {{ student.department }}</p>
+{% else %}
+    <h2 class="text-2xl font-bold text-red-600">Invalid ID</h2>
+{% endif %}
+
+</div>
+{% endblock %}

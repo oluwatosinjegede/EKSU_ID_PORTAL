@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ID Verification</title>
+</head>
+<body>
+    <h2>✅ Student ID Verified</h2>
+
+    <p><strong>Name:</strong>
+        {{ student.user.first_name }}
+        {% if student.middle_name %} {{ student.middle_name }} {% endif %}
+        {{ student.user.last_name }}
+    </p>
+
+    <p><strong>Matric Number:</strong> {{ student.matric_number }}</p>
+    <p><strong>Department:</strong> {{ student.department }}</p>
+    <p><strong>Level:</strong> {{ student.level }}</p>
+    <p><strong>Issued:</strong> {{ issued_at }}</p>
+</body>
+</html>

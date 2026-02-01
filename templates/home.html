@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="grid md:grid-cols-2 gap-10 items-center">
+    
+    <div>
+        <h2 class="text-4xl font-bold mb-4">
+            Secure University ID Card System
+        </h2>
+
+        <p class="text-gray-600 mb-6">
+            Apply for your official university identification card, track approval,
+            and download your digital ID securely.
+        </p>
+
+        <div class="flex gap-4">
+            <a href="{% url 'login' %}"
+               class="bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-800">
+                Student Login
+            </a>
+
+            <a href="/verify/"
+               class="border border-blue-700 text-blue-700 px-6 py-3 rounded-lg font-semibold">
+                Verify ID
+            </a>
+        </div>
+    </div>
+
+    <div class="bg-white p-8 rounded-xl shadow">
+        <ul class="space-y-4">
+            <li>✔ Secure Login</li>
+            <li>✔ Online ID Application</li>
+            <li>✔ QR Code Verification</li>
+            <li>✔ Digital ID Card</li>
+            <li>✔ Admin Approval Workflow</li>
+        </ul>
+    </div>
+
+</div>
+{% endblock %}

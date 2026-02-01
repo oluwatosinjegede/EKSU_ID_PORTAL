@@ -1,0 +1,15 @@
+<html>
+<body style="border:2px solid black; padding:20px;">
+<p><strong>Name:</strong> {{ student.user.first_name }} {{ student.user.last_name }}</p>
+<p><strong>Matric No:</strong> {{ student.matric_number }}</p>
+<p><strong>Department:</strong> {{ student.department }}</p>
+
+<img src="{{ passport }}" width="120"><br>
+<img src="{{ signature }}" width="100"><br>
+
+<p><strong>Verification QR:</strong></p>
+<img src="{{ qr_code }}" width="120">
+
+<p style="font-size:10px;">ID UID: {{ uid }}</p>
+</body>
+</html>
