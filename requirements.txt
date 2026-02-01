@@ -1,51 +1,69 @@
-arabic-reshaper==3.0.0
+# Core Django stack
+Django==4.2.16
 asgiref==3.11.0
+sqlparse==0.5.5
+whitenoise==6.11.0
+dj-database-url==3.1.0
+python-dotenv==1.2.1
+
+# Django REST
+djangorestframework==3.16.1
+
+# Server
+gunicorn==24.1.1
+
+# Database (PostgreSQL – choose ONE driver, psycopg3 preferred)
+psycopg[binary]==3.3.2
+
+# Security / crypto
+cryptography==46.0.3
 asn1crypto==1.5.1
+oscrypto==1.3.0
 certifi==2026.1.4
 cffi==2.0.0
-charset-normalizer==3.4.4
-colorama==0.4.6
-cryptography==46.0.3
-cssselect2==0.8.0
-dj-database-url==3.1.0
-Django==4.2.16
-djangorestframework==3.16.1
-et_xmlfile==2.0.0
-freetype-py==2.5.1
-gunicorn==24.1.1
-html5lib==1.1
-idna==3.11
-lxml==6.0.2
-numpy==2.4.2
-openpyxl==3.1.5
-oscrypto==1.3.0
-packaging==26.0
-pandas==3.0.0
-pillow==12.1.0
-psycopg==3.3.2
-psycopg-binary==3.3.2
-psycopg2-binary==2.9.11
-pycairo==1.29.0
 pycparser==3.0
+
+# HTTP / parsing
+requests==2.32.5
+urllib3==2.6.3
+charset-normalizer==3.4.4
+idna==3.11
+
+# PDFs / reports / rendering (Railway-safe versions)
+reportlab==4.4.9
+pycairo==1.28.0
+rlPyCairo==0.4.0
+svglib==1.6.0
+xhtml2pdf==0.2.17
+tinycss2==1.5.1
+cssselect2==0.8.0
+html5lib==1.1
+webencodings==0.5.1
+
+# PDF signing
 pyHanko==0.32.0
 pyhanko-certvalidator==0.29.0
 pypdf==6.6.2
-python-bidi==0.6.7
+
+# Data & files
+pillow==12.1.0
+openpyxl==3.1.5
+et_xmlfile==2.0.0
+numpy==2.4.2
+pandas==3.0.0
 python-dateutil==2.9.0.post0
-python-dotenv==1.2.1
+six==1.17.0
+
+# Fonts / text
+freetype-py==2.5.1
+arabic-reshaper==3.0.0
+python-bidi==0.6.7
+
+# Utils
+packaging==26.0
 PyYAML==6.0.3
 qrcode==8.2
-reportlab==4.4.9
-requests==2.32.5
-rlPyCairo==0.4.0
-six==1.17.0
-sqlparse==0.5.5
-svglib==1.6.0
-tinycss2==1.5.1
 tzdata==2025.3
 tzlocal==5.3.1
 uritools==6.0.1
-urllib3==2.6.3
-webencodings==0.5.1
-whitenoise==6.11.0
-xhtml2pdf==0.2.17
+colorama==0.4.6
