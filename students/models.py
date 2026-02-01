@@ -12,7 +12,7 @@ class Student(models.Model):
 
     department = models.CharField(max_length=100)
     level = models.CharField(max_length=10)
-    phone = models.CharField(max_length=20, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
