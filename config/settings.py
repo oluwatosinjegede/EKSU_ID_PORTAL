@@ -2,19 +2,22 @@ from pathlib import Path
 import os
 import dj_database_url
 
-
 # --------------------------------------------------
 # Base directory
 # --------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-ALLOWED_HOSTS = ["*"]  # Railway handles domain safety
 # --------------------------------------------------
 # Core settings
 # --------------------------------------------------
-SECRET_KEY = 'dev-secret-key'
-DEBUG = True
-ALLOWED_HOSTS = []
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "unsafe-dev-key")
+
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
+
+ALLOWED_HOSTS = os.environ.get(
+    "DJANGO_ALLOWED_HOSTS",
+    ".up.railway.app,localhost,127.0.0.1"
+).split(",")
 
 # --------------------------------------------------
 # Applications
@@ -28,35 +31,31 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'rest_framework',
-    "applications.apps.ApplicationsConfig",
 
+    'applications.apps.ApplicationsConfig',
     'accounts',
     'students',
-    
     'idcards',
 ]
 
 # --------------------------------------------------
-# Middleware (CLEAN & EXPLICIT)
+# Middleware
 # --------------------------------------------------
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     "whitenoise.middleware.WhiteNoiseMiddleware",
+
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
 
-    # Authentication MUST come before custom auth middleware
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-
-    # Enforce first-login password change
     'accounts.middleware.PasswordChangeRequiredMiddleware',
 
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # --------------------------------------------------
 # URLs
 # --------------------------------------------------
@@ -82,28 +81,23 @@ TEMPLATES = [
 ]
 
 # --------------------------------------------------
-# Database (SQLite for local dev)
+# Database
 # --------------------------------------------------
-#DATABASES = {
-#    'default': {
-#        'ENGINE': 'django.db.backends.sqlite3',
-#        'NAME': BASE_DIR / 'db.sqlite3',
-#    }
-#}
-
-
 DATABASES = {
     "default": dj_database_url.config(
-        default="sqlite:///db.sqlite3",
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
-        ssl_require=True
+        ssl_require=not DEBUG
     )
 }
 
 # --------------------------------------------------
-# Password validation (disabled for dev)
+# Password validation
 # --------------------------------------------------
-AUTH_PASSWORD_VALIDATORS = []
+AUTH_PASSWORD_VALIDATORS = [] if DEBUG else [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+]
 
 # --------------------------------------------------
 # Internationalization
@@ -117,8 +111,15 @@ USE_TZ = True
 # Static files
 # --------------------------------------------------
 STATIC_URL = '/static/'
-
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# --------------------------------------------------
+# Media files
+# --------------------------------------------------
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # --------------------------------------------------
 # Default primary key field
@@ -132,8 +133,12 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/student/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
-
+# --------------------------------------------------
+# Security (Railway-safe)
+# --------------------------------------------------
 CSRF_TRUSTED_ORIGINS = ["https://*.up.railway.app"]
+
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
