@@ -1,4 +1,5 @@
 import csv
+import os
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -11,17 +12,16 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Import students from CSV file"
-
-    def add_arguments(self, parser):
-        parser.add_argument(
-            "csv_file",
-            type=str,
-            help="Absolute or relative path to CSV file",
-        )
+    help = "Import students from CSV file (Railway-safe)"
 
     def handle(self, *args, **options):
-        csv_path = Path(options["csv_file"])
+        # 🔐 Safety switch (REQUIRED on Railway)
+        if os.getenv("IMPORT_STUDENTS") != "true":
+            self.stdout.write("IMPORT_STUDENTS not enabled. Skipping import.")
+            return
+
+        # 📁 Fixed CSV path inside repo
+        csv_path = Path("students/data/students.csv")
 
         if not csv_path.exists():
             self.stderr.write(self.style.ERROR("❌ CSV file not found"))
