@@ -4,12 +4,12 @@ from django.conf import settings
 
 class Student(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    matric_number = models.CharField(max_length=20, unique=True)
+    matric_number = models.CharField(max_length=40, unique=True)
     department = models.CharField(max_length=100)
-    phone = models.CharField(max_length=15)
+    phone = models.CharField(max_length=25)
 
     level = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=[
             ("100", "100 Level"),
             ("200", "200 Level"),
