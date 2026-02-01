@@ -87,3 +87,5 @@ tzdata==2025.3
 tzlocal==5.3.1
 uritools==6.0.1
 colorama==0.4.6
+django-cloudinary-storage
+cloudinary
