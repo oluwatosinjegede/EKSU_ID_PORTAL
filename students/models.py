@@ -11,7 +11,7 @@ class Student(models.Model):
 )
 
     department = models.CharField(max_length=100)
-    level = models.CharField(max_length=15)
+    level = models.CharField(max_length=25)
     phone = models.CharField(max_length=30, blank=True)
 
     user = models.OneToOneField(
