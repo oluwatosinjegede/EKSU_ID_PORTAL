@@ -2,6 +2,10 @@ from pathlib import Path
 import os
 import dj_database_url
 
+SITE_URL = os.getenv(
+    "SITE_URL",
+    "http://localhost:8000",  # fallback for local dev
+)
 # --------------------------------------------------
 # Base directory
 # --------------------------------------------------
@@ -18,6 +22,7 @@ ALLOWED_HOSTS = os.environ.get(
     "DJANGO_ALLOWED_HOSTS",
     ".up.railway.app,localhost,127.0.0.1"
 ).split(",")
+
 
 # --------------------------------------------------
 # Applications
