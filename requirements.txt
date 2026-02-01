@@ -1,4 +1,4 @@
-# Core Django stack
+# Core Django
 Django==4.2.16
 asgiref==3.11.0
 sqlparse==0.5.5
@@ -6,16 +6,16 @@ whitenoise==6.11.0
 dj-database-url==3.1.0
 python-dotenv==1.2.1
 
-# Django REST
+# REST
 djangorestframework==3.16.1
 
 # Server
 gunicorn==24.1.1
 
-# Database (PostgreSQL – choose ONE driver, psycopg3 preferred)
+# Database
 psycopg[binary]==3.3.2
 
-# Security / crypto
+# Security
 cryptography==46.0.3
 asn1crypto==1.5.1
 oscrypto==1.3.0
@@ -23,16 +23,15 @@ certifi==2026.1.4
 cffi==2.0.0
 pycparser==3.0
 
-# HTTP / parsing
+# HTTP
 requests==2.32.5
 urllib3==2.6.3
 charset-normalizer==3.4.4
 idna==3.11
 
-# PDFs / reports / rendering (Railway-safe versions)
+# PDF / Rendering (NO C COMPILATION)
 reportlab==4.4.9
-pycairo==1.28.0
-rlPyCairo==0.4.0
+cairocffi==1.7.1
 svglib==1.6.0
 xhtml2pdf==0.2.17
 tinycss2==1.5.1
@@ -45,7 +44,7 @@ pyHanko==0.32.0
 pyhanko-certvalidator==0.29.0
 pypdf==6.6.2
 
-# Data & files
+# Data
 pillow==12.1.0
 openpyxl==3.1.5
 et_xmlfile==2.0.0
@@ -54,7 +53,7 @@ pandas==3.0.0
 python-dateutil==2.9.0.post0
 six==1.17.0
 
-# Fonts / text
+# Text
 freetype-py==2.5.1
 arabic-reshaper==3.0.0
 python-bidi==0.6.7
