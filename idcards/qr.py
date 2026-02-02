@@ -1,20 +1,35 @@
-import os
+# idcards/qr.py
+
 import qrcode
-from django.conf import settings
+from io import BytesIO
+import cloudinary.uploader
 
 
-def generate_qr_code(uid):
+def generate_qr_code(id_card):
     """
-    Generates a QR code image for ID verification
+    Generate QR code in memory and upload to Cloudinary.
+    No filesystem usage. Railway-safe.
     """
-    verify_url = f"{settings.SITE_URL}/verify/{uid}"
 
-    qr = qrcode.make(verify_url)
+    # What the QR encodes (keep this consistent with your verify logic)
+    data = str(id_card.uid)
 
-    qr_dir = os.path.join(settings.MEDIA_ROOT, 'qr')
-    os.makedirs(qr_dir, exist_ok=True)
+    qr = qrcode.make(data)
 
-    qr_path = os.path.join(qr_dir, f"{uid}.png")
-    qr.save(qr_path)
+    buffer = BytesIO()
+    qr.save(buffer, format="PNG")
+    buffer.seek(0)
 
-    return qr_path
+    result = cloudinary.uploader.upload(
+        buffer,
+        resource_type="image",
+        folder="idcards/qr",
+        public_id=str(id_card.uid),
+        overwrite=True,
+    )
+
+    # Optional: store URL if you add a field later
+    # id_card.qr_url = result["secure_url"]
+    # id_card.save(update_fields=["qr_url"])
+
+    return result["secure_url"]
