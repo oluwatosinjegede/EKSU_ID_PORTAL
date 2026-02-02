@@ -1,16 +1,20 @@
-from django.shortcuts import get_object_or_404, redirect
-from django.http import HttpResponse
-from .models import IDCard
+from django.shortcuts import render, get_object_or_404
+from idcards.models import IDCard
 
 
-def verify_id_card(request, pk):
+def verify_id(request, uid):
     """
-    Redirect to Cloudinary-hosted PDF
+    Public ID verification endpoint (QR target)
     """
-    id_card = get_object_or_404(IDCard, pk=pk)
+    id_card = get_object_or_404(IDCard, uid=uid)
 
-    if not id_card.pdf:
-        return HttpResponse("ID card not generated", status=404)
+    student = id_card.student
 
-    # 🔑 Cloudinary generates correct /raw/upload/ URL here
-    return redirect(id_card.pdf.url)
+    return render(
+        request,
+        "idcards/verify.html",
+        {
+            "student": student,
+            "issued_at": id_card.issued_at,
+        }
+    )
