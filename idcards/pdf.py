@@ -1,6 +1,8 @@
+from pathlib import Path
 from io import BytesIO
-import requests
+
 import cloudinary.uploader
+import requests
 
 from django.conf import settings
 from reportlab.pdfgen import canvas
@@ -9,6 +11,7 @@ from reportlab.lib.colors import HexColor
 from reportlab.graphics.barcode import qr
 from reportlab.graphics.shapes import Drawing
 from reportlab.lib.utils import ImageReader
+
 
 
 
@@ -85,7 +88,7 @@ def generate_id_card_pdf(id_card) -> dict:
             mask="auto",
         )
         c.restoreState()
-        
+
     # ================= QR CODE =================
     BASE_URL = settings.SITE_URL
     verify_url = f"{BASE_URL}/verify/{id_card.uid}/"
