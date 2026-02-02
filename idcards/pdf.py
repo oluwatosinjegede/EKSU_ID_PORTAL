@@ -9,6 +9,10 @@ from reportlab.lib.colors import HexColor
 from reportlab.graphics.barcode import qr
 from reportlab.graphics.shapes import Drawing
 
+import requests
+from io import BytesIO
+from reportlab.lib.utils import ImageReader
+
 # ================= CARD SIZE (ISO ID-1) =================
 CARD_WIDTH, CARD_HEIGHT = (85.60 * mm, 53.98 * mm)
 
@@ -29,6 +33,15 @@ def get_student_full_name(student):
         student.user.last_name,
     ]
     return " ".join(p for p in parts if p)
+
+def image_from_url(url, timeout=10):
+    """
+    Fetch an image from a remote URL and return an ImageReader.
+    Works with Cloudinary, S3, etc.
+    """
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    return ImageReader(BytesIO(response.content))
 
 
 def generate_id_card_pdf(id_card):
@@ -128,25 +141,32 @@ def generate_id_card_pdf(id_card):
     photo_x = CARD_WIDTH - photo_size - 8
     photo_y = 8
 
-    if application and application.passport and Path(application.passport.path).exists():
-        c.roundRect(
-            photo_x - 2,
-            photo_y - 2,
-            photo_size + 4,
-            photo_size + 4,
-            4,
-            stroke=0,
-            fill=0,
-        )
-        c.drawImage(
-            application.passport.path,
-            photo_x,
-            photo_y,
-            photo_size,
-            photo_size,
-            preserveAspectRatio=True,
-            mask="auto",
-        )
+    if application and application.passport:
+        try:
+            passport_img = image_from_url(application.passport.url)
+
+            c.roundRect(
+                photo_x - 2,
+                photo_y - 2,
+                photo_size + 4,
+                photo_size + 4,
+                4,
+                stroke=0,
+                fill=0,
+            )
+
+            c.drawImage(
+                passport_img,
+                photo_x,
+                photo_y,
+                photo_size,
+                photo_size,
+                preserveAspectRatio=True,
+                mask="auto",
+            )
+        except Exception as e:
+            # Optional: log instead of crashing PDF generation
+            print(f"Passport image load failed: {e}")
 
     # =====================================================
     # CENTER COLUMN — STUDENT DETAILS
@@ -171,21 +191,28 @@ def generate_id_card_pdf(id_card):
     c.drawCentredString(center_x, start_y - 3 * gap, f"Level: {student.level}")
     c.drawCentredString(center_x, start_y - 4 * gap, f"Phone: {student.phone}")
 
-    # ================= SIGNATURE (ABOVE FOOTER) =================
-    if application and application.signature and Path(application.signature.path).exists():
-        sig_y = 16
-        c.drawImage(
-            application.signature.path,
-            center_left,
-            sig_y,
-            30,
-            11,
-            preserveAspectRatio=True,
-            mask="auto",
-        )
-        c.setFont("Helvetica", 5.5)
-        c.setFillColor(DARK)
-        c.drawString(center_left, sig_y - 3, "Student Signature")
+   # ================= SIGNATURE (ABOVE FOOTER) =================
+    if application and application.signature:
+        try:
+            sig_y = 16
+            signature_img = image_from_url(application.signature.url)
+
+            c.drawImage(
+                signature_img,
+                center_left,
+                sig_y,
+                30,
+                11,
+                preserveAspectRatio=True,
+                mask="auto",
+            )
+
+            c.setFont("Helvetica", 5.5)
+            c.setFillColor(DARK)
+            c.drawString(center_left, sig_y - 3, "Student Signature")
+
+        except Exception as e:
+            print(f"Signature image load failed: {e}")
 
     # ================= FOOTER =================
     c.setFont("Helvetica", 5.5)
