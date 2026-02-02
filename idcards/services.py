@@ -1,20 +1,19 @@
-from django.core.files import File
 from django.db import transaction
-
-from .models import IDCard
-from .qr import generate_qr_code
-from .pdf import generate_id_card_pdf
+from idcards.models import IDCard
+from idcards.qr import generate_qr_code
+from idcards.pdf import generate_id_card_pdf
 
 
 def generate_id_card(application):
     """
-    Generate ID card PDF and upload to Cloudinary (RAW).
-    Safe to call multiple times.
+    Create an IDCard and generate its QR code + PDF.
+    Safe to call multiple times (idempotent).
     """
 
     student = application.student
 
     with transaction.atomic():
+        # Create ID card once per student
         id_card, created = IDCard.objects.get_or_create(
             student=student,
             defaults={"is_active": True},
@@ -24,18 +23,14 @@ def generate_id_card(application):
         if id_card.pdf:
             return id_card
 
-        # Generate QR code (should update IDCard)
+        # Generate QR (should only depend on id_card.uid)
         generate_qr_code(id_card)
 
-        # Generate PDF locally
-        pdf_path = generate_id_card_pdf(id_card)
+        # Generate PDF and upload to Cloudinary (RAW)
+        result = generate_id_card_pdf(id_card)
 
-        # Upload PDF to Cloudinary via Django storage
-        with open(pdf_path, "rb") as f:
-            id_card.pdf.save(
-                pdf_path.name,
-                File(f),
-                save=True,
-            )
+        # Assign Cloudinary public_id to CloudinaryField
+        id_card.pdf = result["public_id"]
+        id_card.save(update_fields=["pdf"])
 
     return id_card

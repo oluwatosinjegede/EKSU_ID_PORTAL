@@ -1,8 +1,6 @@
-import uuid
 from io import BytesIO
-
-import cloudinary.uploader
 import requests
+import cloudinary.uploader
 
 from django.conf import settings
 from reportlab.pdfgen import canvas
@@ -24,9 +22,6 @@ GRAY = HexColor("#64748b")
 
 
 def get_student_full_name(student):
-    """
-    FIRST + MIDDLE + LAST (safe, no double spaces)
-    """
     parts = [
         student.user.first_name,
         student.middle_name,
@@ -34,17 +29,22 @@ def get_student_full_name(student):
     ]
     return " ".join(p for p in parts if p)
 
+
 def image_from_url(url, timeout=10):
     response = requests.get(url, timeout=timeout)
     response.raise_for_status()
     return ImageReader(BytesIO(response.content))
 
 
-def generate_id_card_pdf(id_card):
+def generate_id_card_pdf(id_card) -> dict:
+    """
+    Generates ID card PDF in memory and uploads to Cloudinary (RAW).
+    RETURNS: Cloudinary upload result dict.
+    """
+
     student = id_card.student
     application = getattr(student, "idapplication", None)
 
-    # ================= PDF IN MEMORY =================
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=(CARD_WIDTH, CARD_HEIGHT))
 
@@ -68,12 +68,9 @@ def generate_id_card_pdf(id_card):
         "EKITI STATE UNIVERSITY (EKSU)",
     )
 
-    # =====================================================
-    # QR CODE
-    # =====================================================
-    qr_x, qr_y = 10, 8
+    # ================= QR CODE =================
     BASE_URL = settings.SITE_URL
-    verify_url = f"{BASE_URL}/verify/{id_card.id}/"
+    verify_url = f"{BASE_URL}/verify/{id_card.uid}/"
 
     qr_widget = qr.QrCodeWidget(verify_url)
     bounds = qr_widget.getBounds()
@@ -93,13 +90,11 @@ def generate_id_card_pdf(id_card):
     )
     qr_drawing.add(qr_widget)
 
-    c.setFillColorRGB(1, 1, 1)
+    qr_x, qr_y = 10, 8
     c.roundRect(qr_x - 2, qr_y - 2, qr_size + 4, qr_size + 4, 4, fill=1, stroke=0)
     qr_drawing.drawOn(c, qr_x, qr_y)
 
-    # =====================================================
-    # PASSPORT PHOTO (Cloudinary-safe)
-    # =====================================================
+    # ================= PASSPORT PHOTO =================
     photo_size = qr_size
     photo_x = CARD_WIDTH - photo_size - 8
     photo_y = 8
@@ -107,15 +102,6 @@ def generate_id_card_pdf(id_card):
     if application and application.passport:
         try:
             passport_img = image_from_url(application.passport.url)
-            c.roundRect(
-                photo_x - 2,
-                photo_y - 2,
-                photo_size + 4,
-                photo_size + 4,
-                4,
-                stroke=0,
-                fill=0,
-            )
             c.drawImage(
                 passport_img,
                 photo_x,
@@ -128,9 +114,7 @@ def generate_id_card_pdf(id_card):
         except Exception as e:
             print(f"Passport load failed: {e}")
 
-    # =====================================================
-    # STUDENT DETAILS
-    # =====================================================
+    # ================= STUDENT DETAILS =================
     center_left = qr_x + qr_size + 8
     center_right = photo_x - 8
     center_x = (center_left + center_right) / 2
@@ -149,25 +133,19 @@ def generate_id_card_pdf(id_card):
     c.drawCentredString(center_x, start_y - 3 * gap, f"Level: {student.level}")
     c.drawCentredString(center_x, start_y - 4 * gap, f"Phone: {student.phone}")
 
-    # =====================================================
-    # SIGNATURE (Cloudinary-safe)
-    # =====================================================
+    # ================= SIGNATURE =================
     if application and application.signature:
         try:
-            sig_y = 16
             signature_img = image_from_url(application.signature.url)
             c.drawImage(
                 signature_img,
                 center_left,
-                sig_y,
+                16,
                 30,
                 11,
                 preserveAspectRatio=True,
                 mask="auto",
             )
-            c.setFont("Helvetica", 5.5)
-            c.setFillColor(DARK)
-            c.drawString(center_left, sig_y - 3, "Student Signature")
         except Exception as e:
             print(f"Signature load failed: {e}")
 
@@ -179,24 +157,13 @@ def generate_id_card_pdf(id_card):
     c.save()
     buffer.seek(0)
 
-    # =====================================================
-    # UPLOAD PDF TO CLOUDINARY (RAW)
-    # =====================================================
-    public_id = f"idcards/EKSU/{student.matric_number}"
-
+    # ================= UPLOAD TO CLOUDINARY =================
     result = cloudinary.uploader.upload(
         buffer,
-        resource_type="raw",   # 🔴 REQUIRED FOR PDF
-        public_id=public_id,
+        resource_type="raw",
+        folder="idcards/pdfs",
+        public_id=f"idcard_{id_card.uid}",
         overwrite=True,
-        use_filename=True,
-        unique_filename=False,
     )
 
-    # =====================================================
-    # SAVE URL VIA FILEFIELD
-    # =====================================================
-    id_card.pdf.name = result["public_id"]
-    id_card.save(update_fields=["pdf"])
-
-    return result["secure_url"]
+    return result
