@@ -1,91 +1,49 @@
-# =========================
-# Django Core
-# =========================
-Django==4.2.16
+arabic-reshaper==3.0.0
 asgiref==3.11.0
-sqlparse==0.5.5
-whitenoise==6.11.0
-dj-database-url==3.1.0
-python-dotenv==1.2.1
-
-# =========================
-# REST Framework
-# =========================
-djangorestframework==3.16.1
-
-# =========================
-# Application Server
-# =========================
-gunicorn==24.1.1
-
-# =========================
-# Database
-# =========================
-psycopg[binary]==3.3.2
-
-# =========================
-# Security / Crypto
-# =========================
-cryptography==46.0.3
 asn1crypto==1.5.1
-oscrypto==1.3.0
+cairocffi==1.7.1
 certifi==2026.1.4
 cffi==2.0.0
-pycparser==3.0
-
-# =========================
-# HTTP / Networking
-# =========================
-requests==2.32.5
-urllib3==2.6.3
 charset-normalizer==3.4.4
-idna==3.11
-
-# =========================
-# PDF & Rendering (Railway-safe)
-# NO pycairo / NO svglib
-# =========================
-reportlab==4.4.9
-cairocffi==1.7.1
-tinycss2==1.5.1
+cloudinary==1.44.1
+colorama==0.4.6
+cryptography==46.0.3
 cssselect2==0.8.0
+dj-database-url==3.1.0
+Django==4.2.16
+django-cloudinary-storage==0.3.0
+djangorestframework==3.16.1
+et_xmlfile==2.0.0
+freetype-py==2.5.1
+gunicorn==24.1.1
 html5lib==1.1
-webencodings==0.5.1
-
-# =========================
-# PDF Signing
-# =========================
+idna==3.11
+lxml==6.0.2
+numpy==2.4.2
+openpyxl==3.1.5
+oscrypto==1.3.0
+packaging==26.0
+pandas==3.0.0
+pillow==12.1.0
+psycopg==3.3.2
+psycopg-binary==3.3.2
+pycparser==3.0
 pyHanko==0.32.0
 pyhanko-certvalidator==0.29.0
 pypdf==6.6.2
-
-# =========================
-# Data Processing
-# =========================
-pillow==12.1.0
-openpyxl==3.1.5
-et_xmlfile==2.0.0
-numpy==2.4.2
-pandas==3.0.0
-python-dateutil==2.9.0.post0
-six==1.17.0
-
-# =========================
-# Text / Fonts
-# =========================
-freetype-py==2.5.1
-arabic-reshaper==3.0.0
 python-bidi==0.6.7
-
-# =========================
-# Utilities
-# =========================
-packaging==26.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.1
 PyYAML==6.0.3
 qrcode==8.2
+reportlab==4.4.9
+requests==2.32.5
+six==1.17.0
+sqlparse==0.5.5
+tinycss2==1.5.1
 tzdata==2025.3
 tzlocal==5.3.1
 uritools==6.0.1
-colorama==0.4.6
-django-cloudinary-storage
-cloudinary
+urllib3==2.6.3
+webencodings==0.5.1
+whitenoise==6.11.0

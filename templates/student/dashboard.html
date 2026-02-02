@@ -45,17 +45,22 @@
         <div class="bg-white p-6 rounded-xl shadow">
             <h3 class="font-semibold mb-2">My ID Card</h3>
 
-            {% if id_card and id_card.pdf %}
-                <a
-                    href="{{ id_card.pdf.url }}"
-                    target="_blank"
-                    class="btn btn-primary"
+            {% if id_card and id_card.image %}
+                <img
+                    src="{{ id_card.image.url }}"
+                    alt="Student ID Card"
+                    style="max-width:100%; border:1px solid #ccc;"
                 >
-                    Download ID Card (PDF)
+
+                <br><br>
+
+                <a href="{{ id_card.image.url }}" download class="btn btn-primary">
+                    Download ID Card (JPG)
                 </a>
             {% else %}
                 <p>Your ID card is not yet available.</p>
             {% endif %}
+
         </div>
 
     </div>

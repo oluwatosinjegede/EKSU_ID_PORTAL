@@ -1,36 +1,23 @@
 from django.db import transaction
 from idcards.models import IDCard
-from idcards.qr import generate_qr_code
-from idcards.pdf import generate_id_card_pdf
+from idcards.image import generate_id_card_image
 
 
 def generate_id_card(application):
-    """
-    Create an IDCard and generate its QR code + PDF.
-    Safe to call multiple times (idempotent).
-    """
-
     student = application.student
 
     with transaction.atomic():
-        # Create ID card once per student
-        id_card, created = IDCard.objects.get_or_create(
+        id_card, _ = IDCard.objects.get_or_create(
             student=student,
             defaults={"is_active": True},
         )
 
-        # If PDF already exists, do nothing
-        if id_card.pdf:
+        if id_card.image:
             return id_card
 
-        # Generate QR (should only depend on id_card.uid)
-        generate_qr_code(id_card)
+        result = generate_id_card_image(id_card)
 
-        # Generate PDF and upload to Cloudinary (RAW)
-        result = generate_id_card_pdf(id_card)
-
-        # Assign Cloudinary public_id to CloudinaryField
-        id_card.pdf = result["public_id"]
-        id_card.save(update_fields=["pdf"])
+        id_card.image = result["public_id"]
+        id_card.save(update_fields=["image"])
 
     return id_card
