@@ -11,6 +11,7 @@ from reportlab.graphics.shapes import Drawing
 from reportlab.lib.utils import ImageReader
 
 
+
 # ================= CARD SIZE (ISO ID-1) =================
 CARD_WIDTH, CARD_HEIGHT = (85.60 * mm, 53.98 * mm)
 
@@ -68,6 +69,23 @@ def generate_id_card_pdf(id_card) -> dict:
         "EKITI STATE UNIVERSITY (EKSU)",
     )
 
+ # ================= WATERMARK LOGO =================
+    logo_path = Path(settings.MEDIA_ROOT) / "branding" / "eksu_logo.png"
+    if logo_path.exists():
+        c.saveState()
+        c.setFillAlpha(0.08)
+        wm_size = 42 * mm
+        c.drawImage(
+            str(logo_path),
+            (CARD_WIDTH - wm_size) / 2,
+            (CARD_HEIGHT - wm_size) / 2,
+            wm_size,
+            wm_size,
+            preserveAspectRatio=True,
+            mask="auto",
+        )
+        c.restoreState()
+        
     # ================= QR CODE =================
     BASE_URL = settings.SITE_URL
     verify_url = f"{BASE_URL}/verify/{id_card.uid}/"
@@ -101,7 +119,7 @@ def generate_id_card_pdf(id_card) -> dict:
 
     if application and application.passport:
         try:
-            passport_img = image_from_url(application.passport.url)
+            passport_img = ImageReader(application.passport.url)
             c.drawImage(
                 passport_img,
                 photo_x,
@@ -162,7 +180,7 @@ def generate_id_card_pdf(id_card) -> dict:
         buffer,
         resource_type="raw",
         folder="idcards/pdfs",
-        public_id=f"idcard_{id_card.uid}",
+        public_id=f"idcard_{id_card.uid}.pdf",  # 👈 force extension
         overwrite=True,
     )
 

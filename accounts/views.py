@@ -40,28 +40,40 @@ def logout_view(request):
     logout(request)
     return redirect('home')
 
-
-@login_required
 @login_required
 def student_dashboard(request):
-    student = Student.objects.get(user=request.user)
-    application = IDApplication.objects.filter(student=student).first()
-    id_card = IDCard.objects.filter(student=student).first()
+    student = get_object_or_404(Student, user=request.user)
+
+    application = (
+        IDApplication.objects
+        .filter(student=student)
+        .select_related()
+        .first()
+    )
+
+    id_card = (
+        IDCard.objects
+        .filter(student=student)
+        .first()
+    )
 
     timeline = {
-        'applied': application is not None,
-        'review': application is not None and application.status == 'PENDING',
-        'approved': application is not None and application.status == 'APPROVED',
-        'issued': id_card is not None,
+        "applied": bool(application),
+        "review": bool(application and application.status == IDApplication.STATUS_PENDING),
+        "approved": bool(application and application.status == IDApplication.STATUS_APPROVED),
+        "issued": bool(id_card and id_card.pdf),
     }
 
-    return render(request, 'student/dashboard.html', {
-        'student': student,
-        'application': application,
-        'id_card': id_card,
-        'timeline': timeline,
-    })
-
+    return render(
+        request,
+        "student/dashboard.html",
+        {
+            "student": student,
+            "application": application,
+            "id_card": id_card,
+            "timeline": timeline,
+        },
+    )
 
 @login_required
 def apply_id_view(request):

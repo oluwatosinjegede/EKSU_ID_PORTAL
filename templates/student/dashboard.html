@@ -46,17 +46,15 @@
             <h3 class="font-semibold mb-2">My ID Card</h3>
 
             {% if id_card and id_card.pdf %}
-                <a href="{{ id_card.pdf.url }}"
-                   class="text-green-700 font-semibold hover:underline"
-                   target="_blank" rel="noopener">
-                    Download ID Card →
+                <a
+                    href="{{ id_card.pdf.url }}"
+                    target="_blank"
+                    class="btn btn-primary"
+                >
+                    Download ID Card (PDF)
                 </a>
-            {% elif application and application.status == "APPROVED" %}
-                <p class="text-sm text-blue-600">
-                    Generating ID card…
-                </p>
             {% else %}
-                <p class="text-sm text-gray-500">Not issued yet</p>
+                <p>Your ID card is not yet available.</p>
             {% endif %}
         </div>
 
