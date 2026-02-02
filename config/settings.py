@@ -135,8 +135,8 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # --------------------------------------------------
 # Media files
 # --------------------------------------------------
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+#MEDIA_URL = "/media/"
+#MEDIA_ROOT = BASE_DIR / "media"
 
 # --------------------------------------------------
 # Default primary key field
@@ -160,7 +160,11 @@ SECURE_SSL_REDIRECT = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
-
+# --------------------------------------------------
+# Media (Cloudinary)
+# --------------------------------------------------
+MEDIA_URL = "/media/"
+MEDIA_ROOT = None  # Cloudinary handles media storage
 
 DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
@@ -168,4 +172,5 @@ CLOUDINARY_STORAGE = {
     "CLOUD_NAME": os.getenv("CLOUDINARY_CLOUD_NAME"),
     "API_KEY": os.getenv("CLOUDINARY_API_KEY"),
     "API_SECRET": os.getenv("CLOUDINARY_API_SECRET"),
+    "RESOURCE_TYPE": "auto",
 }

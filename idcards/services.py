@@ -1,4 +1,3 @@
-from django.conf import settings
 from .models import IDCard
 from .qr import generate_qr_code
 from .pdf import generate_id_card_pdf
@@ -10,17 +9,17 @@ def generate_id_card(application):
     # Create ID card record
     id_card = IDCard.objects.create(
         student=student,
-        is_active=True,
     )
 
     # Generate QR
     generate_qr_code(id_card)
 
-    # Generate PDF
-    pdf_path = generate_id_card_pdf(id_card)
+    # Generate & upload PDF (Cloudinary handled inside)
+    generate_id_card_pdf(id_card)
 
-    # Persist PDF path
-    id_card.pdf.name = pdf_path.relative_to(settings.MEDIA_ROOT).as_posix()
-    id_card.save(update_fields=["pdf"])
+    # ✅ NOTHING else to do here
+    # ❌ Do NOT touch id_card.pdf.name
+    # ❌ Do NOT use MEDIA_ROOT
+    # ❌ Do NOT compute paths
 
     return id_card

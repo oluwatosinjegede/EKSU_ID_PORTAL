@@ -4,7 +4,6 @@ import uuid
 
 
 class IDCard(models.Model):
-    # ✅ Secure public identifier (used for QR verification)
     uid = models.UUIDField(
         default=uuid.uuid4,
         editable=False,
@@ -18,8 +17,9 @@ class IDCard(models.Model):
         related_name="id_card",
     )
 
+    # Explicitly a PDF (Cloudinary raw file)
     pdf = models.FileField(
-        upload_to="idcards/",
+        upload_to="idcards/pdfs/",   # clearer path
         blank=True,
         null=True,
     )
