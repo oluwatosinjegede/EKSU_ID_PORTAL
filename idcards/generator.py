@@ -3,19 +3,25 @@ from django.conf import settings
 import os
 import qrcode
 
-from PIL import ImageFont
 
-font_path = os.path.join(settings.BASE_DIR, "static/fonts/DejaVuSans-Bold.ttf")
+# =========================
+# SAFE FONT LOADER
+# =========================
+def load_fonts():
+    font_path = os.path.join(settings.BASE_DIR, "static/fonts/DejaVuSans-Bold.ttf")
 
-try:
-    font_big = ImageFont.truetype(font_path, 48)
-    font_mid = ImageFont.truetype(font_path, 32)
-    font_small = ImageFont.truetype(font_path, 24)
-except Exception:
-    # fallback to default PIL font (prevents crash)
-    font_big = ImageFont.load_default()
-    font_mid = ImageFont.load_default()
-    font_small = ImageFont.load_default()
+    try:
+        font_big = ImageFont.truetype(font_path, 48)
+        font_mid = ImageFont.truetype(font_path, 32)
+        font_small = ImageFont.truetype(font_path, 26)
+    except Exception:
+        # Fallback to default PIL font (prevents crash)
+        font_big = ImageFont.load_default()
+        font_mid = ImageFont.load_default()
+        font_small = ImageFont.load_default()
+
+    return font_big, font_mid, font_small
+
 
 # =========================
 # QR CODE GENERATOR
@@ -37,33 +43,44 @@ def create_qr_code(data):
 # WATERMARK (UNIVERSITY LOGO)
 # =========================
 def apply_logo_watermark(base_img):
-    """
-    Adds semi-transparent university logo watermark at center
-    """
-
     logo_path = os.path.join(settings.MEDIA_ROOT, "template/university_logo.png")
 
     if not os.path.exists(logo_path):
-        return base_img  # Skip if logo missing
+        return base_img
 
     logo = Image.open(logo_path).convert("RGBA")
 
-    # Resize logo relative to card
     w, h = base_img.size
     logo = logo.resize((int(w * 0.45), int(h * 0.45)))
 
-    # Make watermark transparent
+    # Make transparent
     alpha = logo.split()[3]
-    alpha = ImageEnhance.Brightness(alpha).enhance(0.15)  # transparency level
+    alpha = ImageEnhance.Brightness(alpha).enhance(0.15)
     logo.putalpha(alpha)
 
-    # Position center
     lx = (w - logo.width) // 2
     ly = (h - logo.height) // 2
 
     base_img.paste(logo, (lx, ly), logo)
-
     return base_img
+
+
+# =========================
+# SAFE STUDENT FIELD ACCESS
+# =========================
+def get_student_details(student):
+    full_name = (
+        getattr(student, "full_name", None)
+        or f"{getattr(student, 'first_name', '')} {getattr(student, 'last_name', '')}".strip()
+        or getattr(student, "name", "")
+    )
+
+    matric = getattr(student, "matric_no", "")
+    department = getattr(student, "department", "")
+    faculty = getattr(student, "faculty", "")
+    session = getattr(student, "session", "")
+
+    return full_name, matric, department, faculty, session
 
 
 # =========================
@@ -75,19 +92,13 @@ def generate_id_card(idcard):
 
     student = idcard.student
 
-    # Canvas size
+    # Canvas
     width, height = 1010, 640
     card = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(card)
 
-    # =========================
-    # FONTS (Raspberry Pi safe)
-    # =========================
-    font_path = os.path.join(settings.BASE_DIR, "static/fonts/DejaVuSans-Bold.ttf")
-
-    font_big = ImageFont.truetype(font_path, 48)
-    font_mid = ImageFont.truetype(font_path, 32)
-    font_small = ImageFont.truetype(font_path, 26)
+    # Fonts
+    font_big, font_mid, font_small = load_fonts()
 
     # =========================
     # HEADER
@@ -96,20 +107,26 @@ def generate_id_card(idcard):
     draw.text((30, 30), "EKSU STUDENT ID CARD", font=font_big, fill="white")
 
     # =========================
-    # PASSPORT PHOTO
+    # PASSPORT PHOTO (SAFE)
     # =========================
-    if idcard.passport and os.path.exists(idcard.passport.path):
-        photo = Image.open(idcard.passport.path).resize((220, 260))
-        card.paste(photo, (50, 180))
+    if getattr(idcard, "passport", None):
+        try:
+            if os.path.exists(idcard.passport.path):
+                photo = Image.open(idcard.passport.path).resize((220, 260))
+                card.paste(photo, (50, 180))
+        except Exception:
+            pass
 
     # =========================
     # STUDENT DETAILS
     # =========================
-    draw.text((320, 200), f"Name: {student.full_name}", font=font_mid, fill="black")
-    draw.text((320, 260), f"Matric No: {student.matric_no}", font=font_mid, fill="black")
-    draw.text((320, 320), f"Department: {student.department}", font=font_mid, fill="black")
-    draw.text((320, 380), f"Faculty: {student.faculty}", font=font_mid, fill="black")
-    draw.text((320, 440), f"Session: {student.session}", font=font_mid, fill="black")
+    full_name, matric, dept, faculty, session = get_student_details(student)
+
+    draw.text((320, 200), f"Name: {full_name}", font=font_mid, fill="black")
+    draw.text((320, 260), f"Matric No: {matric}", font=font_mid, fill="black")
+    draw.text((320, 320), f"Department: {dept}", font=font_mid, fill="black")
+    draw.text((320, 380), f"Faculty: {faculty}", font=font_mid, fill="black")
+    draw.text((320, 440), f"Session: {session}", font=font_mid, fill="black")
 
     # =========================
     # QR CODE
@@ -125,23 +142,24 @@ def generate_id_card(idcard):
     draw.text((40, height - 60), "Property of EKSU", font=font_small, fill="white")
 
     # =========================
-    # APPLY WATERMARK (LOGO)
+    # WATERMARK
     # =========================
     card = apply_logo_watermark(card)
 
     # =========================
-    # SAVE IMAGE
+    # SAVE LOCALLY
     # =========================
     output_dir = os.path.join(settings.MEDIA_ROOT, "idcards")
     os.makedirs(output_dir, exist_ok=True)
 
-    filename = f"{student.matric_no}.png"
+    filename = f"{matric or idcard.uid}.png"
     output_path = os.path.join(output_dir, filename)
 
     card.save(output_path, "PNG")
 
-    # Update model
-    idcard.image.name = f"idcards/{filename}"
-    idcard.save()
+    # Update model safely
+    if hasattr(idcard, "image"):
+        idcard.image.name = f"idcards/{filename}"
+        idcard.save(update_fields=["image"])
 
     return output_path
