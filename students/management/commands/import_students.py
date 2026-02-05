@@ -7,12 +7,14 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 
 from students.models import Student
+from applications.models import IDApplication
+from idcards.services import generate_id_card
 
 User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Import students from CSV (Railway-safe, duplicate-safe)"
+    help = "Import students from CSV (Railway-safe, FORCE rebuild capable)"
 
     def handle(self, *args, **options):
 
@@ -22,6 +24,8 @@ class Command(BaseCommand):
         if os.getenv("IMPORT_STUDENTS") != "true":
             self.stdout.write("IMPORT_STUDENTS not enabled. Skipping import.")
             return
+
+        FORCE_REBUILD = os.getenv("REBUILD_STUDENTS") == "true"
 
         # =========================
         # CSV PATH
@@ -34,6 +38,7 @@ class Command(BaseCommand):
 
         created = 0
         updated = 0
+        rebuilt = 0
         skipped = 0
 
         with csv_path.open(encoding="utf-8-sig", newline="") as file:
@@ -51,7 +56,7 @@ class Command(BaseCommand):
                 reader = csv.DictReader(file)
 
             # =========================
-            # Fix broken Excel CSV (1 column)
+            # Fix broken Excel CSV (single column)
             # =========================
             if reader.fieldnames and len(reader.fieldnames) == 1:
                 headers = [h.strip() for h in reader.fieldnames[0].split(",")]
@@ -71,9 +76,7 @@ class Command(BaseCommand):
 
                 matric = (row.get("matric_no") or "").strip()
 
-                # =========================
-                # Skip header row wrongly read as data
-                # =========================
+                # Skip header row wrongly parsed
                 if matric.lower() == "matric_no":
                     continue
 
@@ -101,8 +104,14 @@ class Command(BaseCommand):
                         },
                     )
 
+                    # Force update names (fix bad imports)
+                    if not user_created:
+                        user.first_name = first_name
+                        user.last_name = last_name
+                        user.save(update_fields=["first_name", "last_name"])
+
                     if user_created:
-                        user.set_password("ChangeMe123!")  # force reset
+                        user.set_password("ChangeMe123!")
                         user.save()
 
                     # =========================
@@ -126,8 +135,21 @@ class Command(BaseCommand):
                 else:
                     updated += 1
 
+                # =========================
+                # FORCE REBUILD ID CARD
+                # =========================
+                if FORCE_REBUILD:
+                    try:
+                        app = IDApplication.objects.filter(student=student).first()
+                        if app:
+                            generate_id_card(app)
+                            rebuilt += 1
+                    except Exception as e:
+                        print(f"Rebuild failed for {matric}: {e}")
+
         self.stdout.write(
             self.style.SUCCESS(
-                f"Import complete: {created} created, {updated} updated, {skipped} skipped"
+                f"Import complete: {created} created, {updated} updated, "
+                f"{rebuilt} ID rebuilt, {skipped} skipped"
             )
         )
