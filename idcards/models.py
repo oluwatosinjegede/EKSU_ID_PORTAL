@@ -39,3 +39,4 @@ class IDCard(models.Model):
     )
 
     return f"{full_name} ID Card"
+

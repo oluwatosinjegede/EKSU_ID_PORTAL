@@ -5,6 +5,8 @@ from students.models import Student
 from applications.models import IDApplication
 from idcards.models import IDCard
 
+from idcards.services import ensure_id_card_exists
+
 
 # =========================
 # HOME
@@ -87,6 +89,9 @@ def student_dashboard(request):
             "issued": issued,
         },
     )
+
+    if id_card:
+    ensure_id_card_exists(id_card)
 
 
 # =========================

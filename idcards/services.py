@@ -5,6 +5,9 @@ from idcards.models import IDCard
 from idcards.generator import generate_id_card as build_id_card
 from applications.models import IDApplication
 
+import os
+from django.conf import settings
+
 
 def generate_id_card(application: IDApplication) -> IDCard:
     """
@@ -44,3 +47,12 @@ def generate_id_card(application: IDApplication) -> IDCard:
         id_card.refresh_from_db()
 
         return id_card
+
+def ensure_id_card_exists(id_card):
+    if not id_card or not getattr(id_card, "image", None):
+        return
+
+    file_path = os.path.join(settings.MEDIA_ROOT, id_card.image.name)
+
+    if not os.path.exists(file_path):
+        build_id_card(id_card)
