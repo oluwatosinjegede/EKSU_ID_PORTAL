@@ -1,6 +1,6 @@
 from django.db import transaction
 from idcards.models import IDCard
-from idcards.image import generate_id_card_image
+from idcards.generator import generate_id_card
 from applications.models import IDApplication
 
 

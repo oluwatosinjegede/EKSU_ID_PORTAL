@@ -5,7 +5,7 @@ from .models import IDCard
 
 @admin.register(IDCard)
 class IDCardAdmin(admin.ModelAdmin):
-    list_display = ("student", "issued_at", "image_preview")
+    list_display = ("student", "image_preview")
 
     readonly_fields = ("image_preview",)
 
