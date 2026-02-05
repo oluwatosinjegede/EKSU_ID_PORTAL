@@ -3,6 +3,19 @@ from django.conf import settings
 import os
 import qrcode
 
+from PIL import ImageFont
+
+font_path = os.path.join(settings.BASE_DIR, "static/fonts/DejaVuSans-Bold.ttf")
+
+try:
+    font_big = ImageFont.truetype(font_path, 48)
+    font_mid = ImageFont.truetype(font_path, 32)
+    font_small = ImageFont.truetype(font_path, 24)
+except Exception:
+    # fallback to default PIL font (prevents crash)
+    font_big = ImageFont.load_default()
+    font_mid = ImageFont.load_default()
+    font_small = ImageFont.load_default()
 
 # =========================
 # QR CODE GENERATOR
