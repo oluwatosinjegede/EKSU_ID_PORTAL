@@ -1,19 +1,15 @@
-from django.http import JsonResponse, Http404
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from .models import IDCard
 
 
-def verify_id_card(request, uid):
-    try:
-        card = IDCard.objects.select_related("student").get(uid=uid)
-    except IDCard.DoesNotExist:
-        raise Http404("Invalid ID Card")
+def verify_id(request, uid):
+    """
+    Verify ID card via QR code.
+    """
+    id_card = get_object_or_404(IDCard, uid=uid, is_active=True)
 
-    student = card.student
-
-    return JsonResponse({
-        "status": "VALID",
-        "name": student.full_name,
-        "matric": student.matric_number,
-        "department": student.department,
-        "faculty": student.faculty,
-    })
+    return HttpResponse(
+        f"ID Card Verified for {id_card.student.full_name}",
+        content_type="text/plain",
+    )
