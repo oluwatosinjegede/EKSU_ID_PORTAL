@@ -83,23 +83,17 @@ def generate_id_card(application: IDApplication) -> IDCard:
         return id_card
 
 
-def ensure_id_card_exists(id_card: IDCard):
+def ensure_id_card_exists(id_card):
     """
-    Rebuild image automatically if missing from disk
-    (Railway deletes media after restart)
+    Rebuild image if DB has path but file missing (Railway disk reset fix)
     """
 
-    if not id_card or not getattr(id_card, "image", None):
-        return
-
-    if not id_card.image.name:
+    if not id_card or not id_card.image or not id_card.image.name:
         return
 
     file_path = os.path.join(settings.MEDIA_ROOT, id_card.image.name)
 
-    # If file missing -> rebuild
+    # If file missing ? regenerate automatically
     if not os.path.exists(file_path):
-        try:
-            build_id_card(id_card)
-        except Exception:
-            pass
+        from idcards.generator import generate_id_card
+        generate_id_card(id_card)
