@@ -24,5 +24,5 @@ urlpatterns = [
     #        permanent=True,
     #    ),
     #),
-]
+#]
    
