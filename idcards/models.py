@@ -29,14 +29,14 @@ class IDCard(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-    student = self.student
+        student = self.student
 
-    full_name = (
-        getattr(student, "full_name", None)
-        or f"{getattr(student, 'first_name', '')} {getattr(student, 'last_name', '')}".strip()
-        or getattr(student, "name", "")
-        or str(student)
-    )
+        # Safe full name fallback (prevents crash if field missing)
+        full_name = (
+            getattr(student, "full_name", None)
+            or f"{getattr(student, 'first_name', '')} {getattr(student, 'last_name', '')}".strip()
+            or getattr(student, "name", "")
+            or str(student)
+        )
 
-    return f"{full_name} ID Card"
-
+        return f"{full_name} ID Card"
