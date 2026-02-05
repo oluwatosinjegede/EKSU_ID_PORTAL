@@ -1,28 +1,18 @@
-
 from django.contrib import admin
 from django.urls import path, include
+from idcards.views import verify_id
 from django.conf import settings
 from django.conf.urls.static import static
-from idcards import views as idcard_views
-
-from django.views.generic import RedirectView
-from django.contrib.staticfiles.storage import staticfiles_storage
-from idcards.views import verify_id_card
 
 urlpatterns = [
-    path('', include('accounts.urls')),
-    path('', include('idcards.urls')),
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
 
-    path("verify/<uuid:uid>/", verify_id_card, name="verify-id-card"),
+    path("verify/<uuid:uid>/", verify_id, name="verify_id"),
+
+    path("", include("applications.urls")),
+    path("accounts/", include("accounts.urls")),
+    path("students/", include("students.urls")),
 ]
 
-    #path(
-    #    "favicon.ico",
-    #    RedirectView.as_view(
-    #        url=staticfiles_storage.url("favicon.ico"),
-    #        permanent=True,
-    #    ),
-    #),
-#]
-   
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
