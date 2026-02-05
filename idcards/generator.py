@@ -99,15 +99,19 @@ def generate_id_card(idcard):
     draw.text((30, 30), "EKSU STUDENT ID CARD", font=font_big, fill="white")
 
     # =========================
-    # PASSPORT PHOTO
+    # PASSPORT PHOTO (RAILWAY SAFE)
     # =========================
-    if getattr(idcard, "passport", None):
-        try:
-            if idcard.passport.path and os.path.exists(idcard.passport.path):
-                photo = Image.open(idcard.passport.path).resize((220, 260))
+    try:
+        if getattr(idcard, "passport", None):
+            passport_file = idcard.passport
+
+            if passport_file:
+                # Works with both local and cloud storage
+                photo = Image.open(passport_file).convert("RGB")
+                photo = photo.resize((220, 260))
                 card.paste(photo, (50, 180))
-        except Exception:
-            pass
+    except Exception as e:
+        print("Passport load skipped:", e)
 
     # =========================
     # STUDENT DETAILS

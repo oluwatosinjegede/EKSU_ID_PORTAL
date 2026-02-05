@@ -19,21 +19,28 @@ def generate_id_card(application: IDApplication) -> IDCard:
     student = application.student
 
     with transaction.atomic():
-        # ? removed is_active (field does not exist anymore)
-        id_card, created = IDCard.objects.get_or_create(
-            student=student
-        )
+        # Create or fetch IDCard
+        id_card, created = IDCard.objects.get_or_create(student=student)
 
-        # ----------------------------
-        # If image already exists in DB, ensure file exists on disk
-        # ----------------------------
+        # -------------------------------------------------
+        # Ensure passport copied from Application ? IDCard
+        # (critical for generator to display photo)
+        # -------------------------------------------------
+        if not id_card.passport and getattr(application, "passport", None):
+            id_card.passport = application.passport
+            id_card.save(update_fields=["passport"])
+
+        # -------------------------------------------------
+        # If image exists in DB, ensure file exists on disk
+        # (Railway ephemeral disk protection)
+        # -------------------------------------------------
         if id_card.image and id_card.image.name:
             ensure_id_card_exists(id_card)
             return id_card
 
-        # ----------------------------
-        # Generate ID card locally
-        # ----------------------------
+        # -------------------------------------------------
+        # Generate ID card image
+        # -------------------------------------------------
         try:
             build_id_card(id_card)
         except Exception as e:
@@ -48,11 +55,15 @@ def ensure_id_card_exists(id_card: IDCard):
     Rebuild image if DB has path but file missing (Railway ephemeral disk fix)
     """
 
-    if not id_card or not id_card.image:
+    if not id_card or not getattr(id_card, "image", None):
+        return
+
+    if not id_card.image.name:
         return
 
     file_path = os.path.join(settings.MEDIA_ROOT, id_card.image.name)
 
+    # If file missing ? rebuild automatically
     if not os.path.exists(file_path):
         try:
             build_id_card(id_card)

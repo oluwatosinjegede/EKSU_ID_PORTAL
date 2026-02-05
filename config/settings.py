@@ -131,9 +131,8 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # --------------------------------------------------
 # Media / Cloudinary
 # --------------------------------------------------
-MEDIA_ROOT = "/app/media"
 MEDIA_URL = "/media/"
-
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 # --------------------------------------------------
 # Auth redirects
 # --------------------------------------------------
