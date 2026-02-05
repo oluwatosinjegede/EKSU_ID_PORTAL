@@ -1,28 +1,63 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
+{% block title %}Student Login{% endblock %}
 
 {% block content %}
 <div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow">
-    <h2 class="text-2xl font-bold text-center mb-6">Student Login</h2>
 
-    <form method="post">
+    <h2 class="text-2xl font-bold text-center mb-6">
+        Student Login
+    </h2>
+
+    {% if error %}
+        <div class="mb-4 p-3 bg-red-100 text-red-700 rounded">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    <form method="post" novalidate>
         {% csrf_token %}
 
+        <!-- USERNAME -->
         <div class="mb-4">
-            <label class="block text-sm font-medium">Matriculation Number</label>
-            <input type="text" name="username"
-                   class="w-full border rounded px-4 py-2 mt-1" required>
+            <label for="username" class="block text-sm font-medium">
+                Matriculation Number
+            </label>
+
+            <input
+                id="username"
+                type="text"
+                name="username"
+                value="{{ request.POST.username|default:'' }}"
+                class="w-full border rounded px-4 py-2 mt-1 focus:outline-none focus:ring focus:border-blue-500"
+                autocomplete="username"
+                required
+            >
         </div>
 
+        <!-- PASSWORD -->
         <div class="mb-6">
-            <label class="block text-sm font-medium">Password</label>
-            <input type="password" name="password"
-                   class="w-full border rounded px-4 py-2 mt-1" required>
+            <label for="password" class="block text-sm font-medium">
+                Password
+            </label>
+
+            <input
+                id="password"
+                type="password"
+                name="password"
+                class="w-full border rounded px-4 py-2 mt-1 focus:outline-none focus:ring focus:border-blue-500"
+                autocomplete="current-password"
+                required
+            >
         </div>
 
-        <button class="w-full bg-blue-700 text-white py-3 rounded font-semibold">
+        <!-- SUBMIT -->
+        <button
+            type="submit"
+            class="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded font-semibold transition"
+        >
             Login
         </button>
     </form>
+
 </div>
 {% endblock %}

@@ -143,9 +143,10 @@ LOGOUT_REDIRECT_URL = "/"
 # --------------------------------------------------
 # Security (Railway-safe)
 # --------------------------------------------------
+
 CSRF_TRUSTED_ORIGINS = [
     "https://*.up.railway.app",
-    SITE_URL,
+    "https://eksuidportal.up.railway.app",
 ]
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
