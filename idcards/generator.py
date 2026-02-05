@@ -15,7 +15,6 @@ def load_fonts():
         font_mid = ImageFont.truetype(font_path, 32)
         font_small = ImageFont.truetype(font_path, 26)
     except Exception:
-        # Fallback to default PIL font (prevents crash)
         font_big = ImageFont.load_default()
         font_mid = ImageFont.load_default()
         font_small = ImageFont.load_default()
@@ -27,20 +26,14 @@ def load_fonts():
 # QR CODE GENERATOR
 # =========================
 def create_qr_code(data):
-    qr = qrcode.QRCode(
-        version=1,
-        box_size=6,
-        border=2,
-    )
+    qr = qrcode.QRCode(version=1, box_size=6, border=2)
     qr.add_data(data)
     qr.make(fit=True)
-
-    img = qr.make_image(fill_color="black", back_color="white")
-    return img.convert("RGB")
+    return qr.make_image(fill_color="black", back_color="white").convert("RGB")
 
 
 # =========================
-# WATERMARK (UNIVERSITY LOGO)
+# WATERMARK
 # =========================
 def apply_logo_watermark(base_img):
     logo_path = os.path.join(settings.MEDIA_ROOT, "template/university_logo.png")
@@ -53,7 +46,6 @@ def apply_logo_watermark(base_img):
     w, h = base_img.size
     logo = logo.resize((int(w * 0.45), int(h * 0.45)))
 
-    # Make transparent
     alpha = logo.split()[3]
     alpha = ImageEnhance.Brightness(alpha).enhance(0.15)
     logo.putalpha(alpha)
@@ -69,18 +61,18 @@ def apply_logo_watermark(base_img):
 # SAFE STUDENT FIELD ACCESS
 # =========================
 def get_student_details(student):
-    full_name = (
-        getattr(student, "full_name", None)
-        or f"{getattr(student, 'first_name', '')} {getattr(student, 'last_name', '')}".strip()
-        or getattr(student, "name", "")
-    )
+    first = getattr(student, "first_name", "") or ""
+    middle = getattr(student, "middle_name", "") or ""
+    last = getattr(student, "last_name", "") or ""
 
-    matric = getattr(student, "matric_no", "")
-    department = getattr(student, "department", "")
-    faculty = getattr(student, "faculty", "")
-    session = getattr(student, "session", "")
+    full_name = " ".join(filter(None, [first, middle, last])).strip()
 
-    return full_name, matric, department, faculty, session
+    matric = getattr(student, "matric_no", "") or ""
+    department = getattr(student, "department", "") or ""
+    level = getattr(student, "level", "") or ""
+    phone = getattr(student, "phone", "") or ""
+
+    return full_name, matric, department, level, phone
 
 
 # =========================
@@ -107,11 +99,11 @@ def generate_id_card(idcard):
     draw.text((30, 30), "EKSU STUDENT ID CARD", font=font_big, fill="white")
 
     # =========================
-    # PASSPORT PHOTO (SAFE)
+    # PASSPORT PHOTO
     # =========================
     if getattr(idcard, "passport", None):
         try:
-            if os.path.exists(idcard.passport.path):
+            if idcard.passport.path and os.path.exists(idcard.passport.path):
                 photo = Image.open(idcard.passport.path).resize((220, 260))
                 card.paste(photo, (50, 180))
         except Exception:
@@ -120,13 +112,13 @@ def generate_id_card(idcard):
     # =========================
     # STUDENT DETAILS
     # =========================
-    full_name, matric, dept, faculty, session = get_student_details(student)
+    full_name, matric, dept, level, phone = get_student_details(student)
 
     draw.text((320, 200), f"Name: {full_name}", font=font_mid, fill="black")
     draw.text((320, 260), f"Matric No: {matric}", font=font_mid, fill="black")
     draw.text((320, 320), f"Department: {dept}", font=font_mid, fill="black")
-    draw.text((320, 380), f"Faculty: {faculty}", font=font_mid, fill="black")
-    draw.text((320, 440), f"Session: {session}", font=font_mid, fill="black")
+    draw.text((320, 380), f"Level: {level}", font=font_mid, fill="black")
+    draw.text((320, 440), f"Phone: {phone}", font=font_mid, fill="black")
 
     # =========================
     # QR CODE
