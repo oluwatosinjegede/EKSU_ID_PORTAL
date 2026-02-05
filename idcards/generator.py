@@ -11,54 +11,53 @@ def load_fonts():
     font_path = os.path.join(settings.BASE_DIR, "static/fonts/DejaVuSans-Bold.ttf")
 
     try:
-        font_big = ImageFont.truetype(font_path, 48)
-        font_mid = ImageFont.truetype(font_path, 32)
-        font_small = ImageFont.truetype(font_path, 26)
+        return (
+            ImageFont.truetype(font_path, 48),
+            ImageFont.truetype(font_path, 32),
+            ImageFont.truetype(font_path, 26),
+        )
     except Exception:
-        font_big = ImageFont.load_default()
-        font_mid = ImageFont.load_default()
-        font_small = ImageFont.load_default()
-
-    return font_big, font_mid, font_small
+        return (
+            ImageFont.load_default(),
+            ImageFont.load_default(),
+            ImageFont.load_default(),
+        )
 
 
 # =========================
-# QR CODE GENERATOR
+# QR CODE
 # =========================
 def create_qr_code(data):
-    qr = qrcode.QRCode(version=1, box_size=6, border=2)
+    qr = qrcode.QRCode(box_size=6, border=2)
     qr.add_data(data)
     qr.make(fit=True)
     return qr.make_image(fill_color="black", back_color="white").convert("RGB")
 
 
 # =========================
-# WATERMARK
+# WATERMARK (STATIC SAFE)
 # =========================
-def apply_logo_watermark(base_img):
-    logo_path = os.path.join(settings.MEDIA_ROOT, "template/university_logo.png")
+def apply_logo_watermark(card):
+    logo_path = os.path.join(settings.BASE_DIR, "static/images/university_logo.png")
 
     if not os.path.exists(logo_path):
-        return base_img
+        return card
 
     logo = Image.open(logo_path).convert("RGBA")
 
-    w, h = base_img.size
-    logo = logo.resize((int(w * 0.45), int(h * 0.45)))
+    w, h = card.size
+    logo = logo.resize((int(w * 0.35), int(h * 0.35)))
 
     alpha = logo.split()[3]
-    alpha = ImageEnhance.Brightness(alpha).enhance(0.15)
+    alpha = ImageEnhance.Brightness(alpha).enhance(0.12)
     logo.putalpha(alpha)
 
-    lx = (w - logo.width) // 2
-    ly = (h - logo.height) // 2
-
-    base_img.paste(logo, (lx, ly), logo)
-    return base_img
+    card.paste(logo, ((w - logo.width) // 2, (h - logo.height) // 2), logo)
+    return card
 
 
 # =========================
-# SAFE STUDENT FIELD ACCESS
+# SAFE STUDENT DATA
 # =========================
 def get_student_details(student):
     first = getattr(student, "first_name", "") or ""
@@ -76,46 +75,40 @@ def get_student_details(student):
 
 
 # =========================
+# SAFE PASSPORT LOADER
+# =========================
+def paste_passport(card, idcard):
+    try:
+        if idcard.passport:
+            idcard.passport.open("rb")
+            photo = Image.open(idcard.passport).convert("RGB")
+            photo = photo.resize((220, 260))
+            card.paste(photo, (50, 180))
+    except Exception:
+        pass
+
+
+# =========================
 # MAIN GENERATOR
 # =========================
 def generate_id_card(idcard):
-    if not idcard:
-        raise ValueError("IDCard instance is None")
 
     student = idcard.student
 
-    # Canvas
     width, height = 1010, 640
     card = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(card)
 
-    # Fonts
     font_big, font_mid, font_small = load_fonts()
 
-    # =========================
     # HEADER
-    # =========================
     draw.rectangle((0, 0, width, 120), fill=(0, 102, 0))
     draw.text((30, 30), "EKSU STUDENT ID CARD", font=font_big, fill="white")
 
-    # =========================
-    # PASSPORT PHOTO (RAILWAY SAFE)
-    # =========================
-    try:
-        if getattr(idcard, "passport", None):
-            passport_file = idcard.passport
+    # PASSPORT
+    paste_passport(card, idcard)
 
-            if passport_file:
-                # Works with both local and cloud storage
-                photo = Image.open(passport_file).convert("RGB")
-                photo = photo.resize((220, 260))
-                card.paste(photo, (50, 180))
-    except Exception as e:
-        print("Passport load skipped:", e)
-
-    # =========================
-    # STUDENT DETAILS
-    # =========================
+    # STUDENT DATA
     full_name, matric, dept, level, phone = get_student_details(student)
 
     draw.text((320, 200), f"Name: {full_name}", font=font_mid, fill="black")
@@ -124,27 +117,19 @@ def generate_id_card(idcard):
     draw.text((320, 380), f"Level: {level}", font=font_mid, fill="black")
     draw.text((320, 440), f"Phone: {phone}", font=font_mid, fill="black")
 
-    # =========================
-    # QR CODE
-    # =========================
+    # QR (FIXED — moved UP so not cropped)
     verify_url = f"{settings.SITE_URL}/verify/{idcard.uid}/"
     qr_img = create_qr_code(verify_url).resize((140, 140))
-    card.paste(qr_img, (820, 460))
+    card.paste(qr_img, (820, 400))
 
-    # =========================
     # FOOTER
-    # =========================
     draw.rectangle((0, height - 80, width, height), fill=(0, 102, 0))
     draw.text((40, height - 60), "Property of EKSU", font=font_small, fill="white")
 
-    # =========================
     # WATERMARK
-    # =========================
     card = apply_logo_watermark(card)
 
-    # =========================
-    # SAVE LOCALLY
-    # =========================
+    # SAVE
     output_dir = os.path.join(settings.MEDIA_ROOT, "idcards")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -153,9 +138,7 @@ def generate_id_card(idcard):
 
     card.save(output_path, "PNG")
 
-    # Update model safely
-    if hasattr(idcard, "image"):
-        idcard.image.name = f"idcards/{filename}"
-        idcard.save(update_fields=["image"])
+    idcard.image.name = f"idcards/{filename}"
+    idcard.save(update_fields=["image"])
 
     return output_path
