@@ -8,14 +8,16 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --------------------------------------------------
-# Site
+# Site URL (Used for QR verify link)
+# IMPORTANT: Do NOT end with '/'
 # --------------------------------------------------
-SITE_URL = os.getenv("SITE_URL", "http://localhost:8000")
+SITE_URL = os.getenv("SITE_URL", "http://localhost:8000").rstrip("/")
 
 # --------------------------------------------------
 # Core settings
 # --------------------------------------------------
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "unsafe-dev-key")
+
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = os.environ.get(
@@ -36,9 +38,7 @@ INSTALLED_APPS = [
 
     "rest_framework",
 
-    "cloudinary",
-    "cloudinary_storage",
-
+    # Your apps
     "applications.apps.ApplicationsConfig",
     "accounts",
     "students",
@@ -85,7 +85,7 @@ TEMPLATES = [
 ]
 
 # --------------------------------------------------
-# Database
+# Database (Railway PostgreSQL or SQLite locally)
 # --------------------------------------------------
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -122,17 +122,19 @@ USE_I18N = True
 USE_TZ = True
 
 # --------------------------------------------------
-# Static files
+# Static files (WhiteNoise)
 # --------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # --------------------------------------------------
-# Media / Cloudinary
+# Media (Local storage for ID cards + passport)
+# Railway requires Django to serve media itself
 # --------------------------------------------------
 MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+MEDIA_ROOT = BASE_DIR / "media"
+
 # --------------------------------------------------
 # Auth redirects
 # --------------------------------------------------
@@ -141,9 +143,8 @@ LOGIN_REDIRECT_URL = "/student/dashboard/"
 LOGOUT_REDIRECT_URL = "/"
 
 # --------------------------------------------------
-# Security (Railway-safe)
+# CSRF / SSL (Railway-safe)
 # --------------------------------------------------
-
 CSRF_TRUSTED_ORIGINS = [
     "https://*.up.railway.app",
     "https://eksuidportal.up.railway.app",
@@ -153,6 +154,12 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+
+# --------------------------------------------------
+# Prevent large upload failures (passport images)
+# --------------------------------------------------
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # --------------------------------------------------
 # Default primary key
