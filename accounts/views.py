@@ -1,10 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+
 from students.models import Student
 from applications.models import IDApplication
 from idcards.models import IDCard
-
 from idcards.services import ensure_id_card_exists
 
 
@@ -68,8 +68,15 @@ def student_dashboard(request):
 
     id_card = IDCard.objects.filter(student=student).first()
 
-    # Safe check for image-based ID
-    issued = bool(id_card and getattr(id_card, "image", None))
+    # ?? Auto-generate ID if approved and image missing
+    if id_card and not id_card.image:
+        try:
+            ensure_id_card_exists(id_card)
+            id_card.refresh_from_db()
+        except Exception:
+            pass  # prevent dashboard crash if generation fails
+
+    issued = bool(id_card and id_card.image)
 
     timeline = {
         "applied": bool(application),
@@ -90,9 +97,6 @@ def student_dashboard(request):
         },
     )
 
-    if id_card:
-    ensure_id_card_exists(id_card)
-
 
 # =========================
 # APPLY FOR ID
@@ -101,7 +105,6 @@ def student_dashboard(request):
 def apply_id_view(request):
     student = get_object_or_404(Student, user=request.user)
 
-    # Prevent duplicate application
     if IDApplication.objects.filter(student=student).exists():
         return redirect("student-dashboard")
 
