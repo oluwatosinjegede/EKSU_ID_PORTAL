@@ -12,19 +12,24 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Import students from CSV file (Railway-safe)"
+    help = "Import students from CSV (Railway-safe, duplicate-safe)"
 
     def handle(self, *args, **options):
-        # 🔐 Safety switch (REQUIRED on Railway)
+
+        # =========================
+        # SAFETY SWITCH (Railway)
+        # =========================
         if os.getenv("IMPORT_STUDENTS") != "true":
             self.stdout.write("IMPORT_STUDENTS not enabled. Skipping import.")
             return
 
-        # 📁 Fixed CSV path inside repo
+        # =========================
+        # CSV PATH
+        # =========================
         csv_path = Path("students/data/students.csv")
 
         if not csv_path.exists():
-            self.stderr.write(self.style.ERROR("❌ CSV file not found"))
+            self.stderr.write(self.style.ERROR("CSV file not found"))
             return
 
         created = 0
@@ -32,17 +37,22 @@ class Command(BaseCommand):
         skipped = 0
 
         with csv_path.open(encoding="utf-8-sig", newline="") as file:
+
             sample = file.read(2048)
             file.seek(0)
 
+            # =========================
             # Detect delimiter safely
+            # =========================
             try:
                 dialect = csv.Sniffer().sniff(sample, delimiters=";,")
                 reader = csv.DictReader(file, dialect=dialect)
             except csv.Error:
                 reader = csv.DictReader(file)
 
-            # 🔥 Fix Excel single-column CSV issue
+            # =========================
+            # Fix broken Excel CSV (1 column)
+            # =========================
             if reader.fieldnames and len(reader.fieldnames) == 1:
                 headers = [h.strip() for h in reader.fieldnames[0].split(",")]
                 reader.fieldnames = headers
@@ -58,23 +68,36 @@ class Command(BaseCommand):
                 rows = reader
 
             for row in rows:
-                matric_number = (
-                    row.get("matric_no")
-                    or row.get("matric_number")
-                    or ""
-                ).strip()
 
-                if not matric_number:
+                matric = (row.get("matric_no") or "").strip()
+
+                # =========================
+                # Skip header row wrongly read as data
+                # =========================
+                if matric.lower() == "matric_no":
+                    continue
+
+                if not matric:
                     skipped += 1
                     continue
 
+                first_name = (row.get("first_name") or "").strip()
+                middle_name = (row.get("middle_name") or "").strip()
+                last_name = (row.get("last_name") or "").strip()
+                department = (row.get("department") or "").strip()
+                level = (row.get("level") or "").strip()
+                phone = (row.get("phone") or "").strip()
+
                 with transaction.atomic():
+
+                    # =========================
+                    # Create / Update User
+                    # =========================
                     user, user_created = User.objects.get_or_create(
-                        username=matric_number,
+                        username=matric,
                         defaults={
-                            "first_name": row.get("first_name", "").strip(),
-                            "last_name": row.get("last_name", "").strip(),
-                            "email": row.get("email", "").strip(),
+                            "first_name": first_name,
+                            "last_name": last_name,
                         },
                     )
 
@@ -82,14 +105,19 @@ class Command(BaseCommand):
                         user.set_password("ChangeMe123!")  # force reset
                         user.save()
 
+                    # =========================
+                    # Create / Update Student
+                    # =========================
                     student, student_created = Student.objects.update_or_create(
-                        matric_number=matric_number,
+                        matric_no=matric,
                         defaults={
                             "user": user,
-                            "middle_name": row.get("middle_name", "").strip(),
-                            "department": row.get("department", "").strip(),
-                            "level": row.get("level", "100").strip(),
-                            "phone": row.get("phone", "").strip(),
+                            "first_name": first_name,
+                            "middle_name": middle_name,
+                            "last_name": last_name,
+                            "department": department,
+                            "level": level,
+                            "phone": phone,
                         },
                     )
 
@@ -100,6 +128,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"✅ Import complete: {created} created, {updated} updated, {skipped} skipped"
+                f"Import complete: {created} created, {updated} updated, {skipped} skipped"
             )
         )

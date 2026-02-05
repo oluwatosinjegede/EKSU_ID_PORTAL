@@ -35,7 +35,7 @@ def create_qr_code(data):
 
 
 # =========================
-# WATERMARK (STATIC SAFE)
+# WATERMARK
 # =========================
 def apply_logo_watermark(card):
     logo_path = os.path.join(settings.BASE_DIR, "static/images/university_logo.png")
@@ -60,16 +60,18 @@ def apply_logo_watermark(card):
 # SAFE STUDENT DATA
 # =========================
 def get_student_details(student):
-    first = getattr(student, "first_name", "") or ""
-    middle = getattr(student, "middle_name", "") or ""
-    last = getattr(student, "last_name", "") or ""
 
+    first = str(getattr(student, "first_name", "") or "").strip()
+    middle = str(getattr(student, "middle_name", "") or "").strip()
+    last = str(getattr(student, "last_name", "") or "").strip()
+
+    # FULL NAME ALWAYS SAFE
     full_name = " ".join(filter(None, [first, middle, last])).strip()
 
-    matric = getattr(student, "matric_no", "") or ""
-    department = getattr(student, "department", "") or ""
-    level = getattr(student, "level", "") or ""
-    phone = getattr(student, "phone", "") or ""
+    matric = str(getattr(student, "matric_no", "") or "").strip()
+    department = str(getattr(student, "department", "") or "").strip()
+    level = str(getattr(student, "level", "") or "").strip()
+    phone = str(getattr(student, "phone", "") or "").strip()
 
     return full_name, matric, department, level, phone
 
@@ -101,14 +103,14 @@ def generate_id_card(idcard):
 
     font_big, font_mid, font_small = load_fonts()
 
-    # HEADER
+    # ================= HEADER =================
     draw.rectangle((0, 0, width, 120), fill=(0, 102, 0))
     draw.text((30, 30), "EKSU STUDENT ID CARD", font=font_big, fill="white")
 
-    # PASSPORT
+    # ================= PASSPORT =================
     paste_passport(card, idcard)
 
-    # STUDENT DATA
+    # ================= STUDENT DATA =================
     full_name, matric, dept, level, phone = get_student_details(student)
 
     draw.text((320, 200), f"Name: {full_name}", font=font_mid, fill="black")
@@ -117,19 +119,19 @@ def generate_id_card(idcard):
     draw.text((320, 380), f"Level: {level}", font=font_mid, fill="black")
     draw.text((320, 440), f"Phone: {phone}", font=font_mid, fill="black")
 
-    # QR (FIXED — moved UP so not cropped)
+    # ================= QR CODE =================
     verify_url = f"{settings.SITE_URL}/verify/{idcard.uid}/"
-    qr_img = create_qr_code(verify_url).resize((140, 140))
-    card.paste(qr_img, (820, 400))
+    qr_img = create_qr_code(verify_url).resize((160, 160))
+    card.paste(qr_img, (820, 380))   # moved up + bigger
 
-    # FOOTER
+    # ================= FOOTER =================
     draw.rectangle((0, height - 80, width, height), fill=(0, 102, 0))
     draw.text((40, height - 60), "Property of EKSU", font=font_small, fill="white")
 
-    # WATERMARK
+    # ================= WATERMARK =================
     card = apply_logo_watermark(card)
 
-    # SAVE
+    # ================= SAVE =================
     output_dir = os.path.join(settings.MEDIA_ROOT, "idcards")
     os.makedirs(output_dir, exist_ok=True)
 
