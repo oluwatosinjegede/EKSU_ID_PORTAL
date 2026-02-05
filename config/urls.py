@@ -11,7 +11,7 @@ urlpatterns = [
     path("verify/<uuid:uid>/", verify_id, name="verify_id"),
 
     path('', include('idcards.urls')),
-    path("accounts/", include("accounts.urls")),
+    path('', include('accounts.urls')),
    
 ]
 
