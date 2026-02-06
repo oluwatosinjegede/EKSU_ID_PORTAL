@@ -1,37 +1,44 @@
-from django.template.loader import get_template
-from xhtml2pdf import pisa
-from django.conf import settings
-from .models import IDCard
-from .qr import generate_qr_code
-import os
+from django.db import transaction
+from idcards.models import IDCard
+from idcards.generator import generate_id_card as build_id_card
+
 
 def generate_id_card(application):
+    """
+    Create or reuse IDCard and generate PNG ID image (Cloudinary safe).
+    Passport-only workflow. No filesystem. No PDF.
+    """
+
+    if not application or not application.student:
+        raise ValueError("Invalid application or missing student")
+
     student = application.student
 
-    id_card = IDCard.objects.create(student=student)
+    with transaction.atomic():
 
-    qr_url = generate_qr_code(id_card.uid)
+        # Get or create IDCard (avoid duplicates)
+        id_card, _ = IDCard.objects.get_or_create(student=student)
 
-    template = get_template('idcard.html')
-    html = template.render({
-        'student': student,
-        'passport': application.passport.url,
-        'signature': application.signature.url,
-        'qr_code': qr_url,
-        'uid': id_card.uid,
-    })
+        # Copy passport if missing
+        if not id_card.passport and application.passport:
+            try:
+                src_file = application.passport.file
+                filename = f"{student.matric_number}_passport.jpg"
 
-    output_path = os.path.join(
-        settings.MEDIA_ROOT,
-        f"idcards/{student.matric_number}.pdf"
-    )
+                id_card.passport.save(
+                    filename,
+                    src_file,
+                    save=True,
+                )
+            except Exception:
+                pass
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        # Skip regeneration if image already exists
+        if id_card.image:
+            return id_card
 
-    with open(output_path, "wb") as file:
-        pisa.CreatePDF(html, dest=file)
+        # Generate PNG ID card (Cloudinary)
+        build_id_card(id_card)
 
-    id_card.pdf.name = f"idcards/{student.matric_number}.pdf"
-    id_card.save()
-
-    return id_card
+        id_card.refresh_from_db()
+        return id_card

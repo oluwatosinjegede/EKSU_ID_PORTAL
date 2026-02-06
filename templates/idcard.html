@@ -1,15 +1,29 @@
 <html>
-<body style="border:2px solid black; padding:20px;">
-<p><strong>Name:</strong> {{ student.user.first_name }} {{ student.user.last_name }}</p>
+<body style="border:2px solid black; padding:20px; font-family: Arial, sans-serif;">
+
+<p><strong>Name:</strong>
+    {{ student.user.first_name }} {{ student.user.last_name }}
+</p>
+
 <p><strong>Matric No:</strong> {{ student.matric_number }}</p>
 <p><strong>Department:</strong> {{ student.department }}</p>
 
-<img src="{{ passport }}" width="120"><br>
-<img src="{{ signature }}" width="100"><br>
+<!-- PASSPORT PHOTO -->
+{% if passport %}
+    <img src="{{ passport }}" width="120" alt="Passport Photo"><br>
+{% else %}
+    <p style="color:red;">Passport photo not available</p>
+{% endif %}
 
 <p><strong>Verification QR:</strong></p>
-<img src="{{ qr_code }}" width="120">
+
+{% if qr_code %}
+    <img src="{{ qr_code }}" width="120" alt="QR Code">
+{% else %}
+    <p style="color:red;">QR code unavailable</p>
+{% endif %}
 
 <p style="font-size:10px;">ID UID: {{ uid }}</p>
+
 </body>
 </html>

@@ -1,35 +1,44 @@
-# idcards/qr.py
-
 import qrcode
 from io import BytesIO
+from django.conf import settings
 import cloudinary.uploader
 
 
 def generate_qr_code(id_card):
     """
-    Generate QR code in memory and upload to Cloudinary.
-    No filesystem usage. Railway-safe.
+    Generate QR code and upload to Cloudinary.
+    Encodes full verification URL.
+    Railway-safe (no filesystem).
     """
 
-    # What the QR encodes (keep this consistent with your verify logic)
-    data = str(id_card.uid)
+    if not id_card or not id_card.uid:
+        raise ValueError("Invalid IDCard")
 
-    qr = qrcode.make(data)
+    # QR should encode full verification link (recommended)
+    verify_url = f"{settings.SITE_URL}/verify/{id_card.uid}/"
+
+    # Build QR image in memory
+    qr = qrcode.QRCode(box_size=6, border=2)
+    qr.add_data(verify_url)
+    qr.make(fit=True)
+
+    img = qr.make_image(fill_color="black", back_color="white")
 
     buffer = BytesIO()
-    qr.save(buffer, format="PNG")
+    img.save(buffer, format="PNG")
     buffer.seek(0)
 
-    result = cloudinary.uploader.upload(
-        buffer,
-        resource_type="image",
-        folder="idcards/qr",
-        public_id=str(id_card.uid),
-        overwrite=True,
-    )
+    public_id = f"idcards/qr/{id_card.uid}"
 
-    # Optional: store URL if you add a field later
-    # id_card.qr_url = result["secure_url"]
-    # id_card.save(update_fields=["qr_url"])
+    try:
+        result = cloudinary.uploader.upload(
+            buffer,
+            resource_type="image",
+            public_id=public_id,
+            overwrite=True,
+        )
+        return result.get("secure_url")
 
-    return result["secure_url"]
+    except Exception:
+        # Never crash ID generation if QR upload fails
+        return None

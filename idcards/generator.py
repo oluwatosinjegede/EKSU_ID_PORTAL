@@ -2,12 +2,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from django.conf import settings
 import os
 import qrcode
-
 from io import BytesIO
 from django.core.files.base import ContentFile
-
-
-
 
 
 # =========================
@@ -23,11 +19,8 @@ def load_fonts():
             ImageFont.truetype(font_path, 26),
         )
     except Exception:
-        return (
-            ImageFont.load_default(),
-            ImageFont.load_default(),
-            ImageFont.load_default(),
-        )
+        default = ImageFont.load_default()
+        return default, default, default
 
 
 # =========================
@@ -49,16 +42,20 @@ def apply_logo_watermark(card):
     if not os.path.exists(logo_path):
         return card
 
-    logo = Image.open(logo_path).convert("RGBA")
+    try:
+        logo = Image.open(logo_path).convert("RGBA")
 
-    w, h = card.size
-    logo = logo.resize((int(w * 0.35), int(h * 0.35)))
+        w, h = card.size
+        logo = logo.resize((int(w * 0.35), int(h * 0.35)))
 
-    alpha = logo.split()[3]
-    alpha = ImageEnhance.Brightness(alpha).enhance(0.12)
-    logo.putalpha(alpha)
+        alpha = logo.split()[3]
+        alpha = ImageEnhance.Brightness(alpha).enhance(0.12)
+        logo.putalpha(alpha)
 
-    card.paste(logo, ((w - logo.width) // 2, (h - logo.height) // 2), logo)
+        card.paste(logo, ((w - logo.width) // 2, (h - logo.height) // 2), logo)
+    except Exception:
+        pass
+
     return card
 
 
@@ -66,15 +63,13 @@ def apply_logo_watermark(card):
 # SAFE STUDENT DATA
 # =========================
 def get_student_details(student):
-
     first = str(getattr(student, "first_name", "") or "").strip()
     middle = str(getattr(student, "middle_name", "") or "").strip()
     last = str(getattr(student, "last_name", "") or "").strip()
 
-    # FULL NAME ALWAYS SAFE
     full_name = " ".join(filter(None, [first, middle, last])).strip()
 
-    matric = str(getattr(student, "matric_no", "") or "").strip()
+    matric = str(getattr(student, "matric_number", "") or "").strip()
     department = str(getattr(student, "department", "") or "").strip()
     level = str(getattr(student, "level", "") or "").strip()
     phone = str(getattr(student, "phone", "") or "").strip()
@@ -88,18 +83,22 @@ def get_student_details(student):
 def paste_passport(card, idcard):
     try:
         if idcard.passport:
-            idcard.passport.open("rb")
-            photo = Image.open(idcard.passport).convert("RGB")
-            photo = photo.resize((220, 260))
-            card.paste(photo, (50, 180))
+            with idcard.passport.open("rb") as f:
+                photo = Image.open(f).convert("RGB")
+                photo = photo.resize((220, 260))
+                card.paste(photo, (50, 180))
     except Exception:
         pass
 
-# =========================
-# MAIN GENERATOR (Cloudinary)
-# =========================
 
+# =========================
+# MAIN GENERATOR (Cloudinary Safe)
+# =========================
 def generate_id_card(idcard):
+
+    # Skip regeneration if image already exists
+    if idcard.image:
+        return idcard.image.url
 
     student = idcard.student
 
@@ -127,8 +126,11 @@ def generate_id_card(idcard):
 
     # ================= QR CODE =================
     verify_url = f"{settings.SITE_URL}/verify/{idcard.uid}/"
-    qr_img = create_qr_code(verify_url).resize((160, 160))
-    card.paste(qr_img, (820, 380))
+    try:
+        qr_img = create_qr_code(verify_url).resize((160, 160))
+        card.paste(qr_img, (820, 380))
+    except Exception:
+        pass
 
     # ================= FOOTER =================
     draw.rectangle((0, height - 80, width, height), fill=(0, 102, 0))
@@ -138,15 +140,12 @@ def generate_id_card(idcard):
     card = apply_logo_watermark(card)
 
     # ================= SAVE TO CLOUDINARY =================
-
-    # Save image to memory buffer (not filesystem)
     buffer = BytesIO()
     card.save(buffer, format="PNG")
     buffer.seek(0)
 
     filename = f"idcards/{matric or idcard.uid}.png"
 
-    # Save via Django storage (Cloudinary backend)
     idcard.image.save(
         filename,
         ContentFile(buffer.read()),

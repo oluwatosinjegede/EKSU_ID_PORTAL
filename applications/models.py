@@ -14,32 +14,28 @@ class IDApplication(models.Model):
         (STATUS_REJECTED, "Rejected"),
     ]
 
+    # =========================
+    # STUDENT LINK
+    # =========================
     student = models.OneToOneField(
         Student,
         on_delete=models.CASCADE,
         related_name="id_application",
     )
 
+    # =========================
+    # PASSPORT PHOTO (ONLY IMAGE REQUIRED)
+    # =========================
     passport = CloudinaryField(
         "passport",
         resource_type="image",
         folder="id_applications/passports",
+        blank=False,     # passport REQUIRED
+        null=False,
     )
 
-    signature = CloudinaryField(
-        "signature",
-        resource_type="image",
-        folder="id_applications/signatures",
-    )
-
+    # =========================
+    # APPLICATION STATUS
+    # =========================
     status = models.CharField(
         max_length=10,
-        choices=STATUS_CHOICES,
-        default=STATUS_PENDING,
-    )
-
-    reviewed_by = models.CharField(max_length=150, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"ID Application – {self.student}"
