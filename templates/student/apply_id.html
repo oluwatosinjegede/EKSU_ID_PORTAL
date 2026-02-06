@@ -8,17 +8,26 @@
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
 
-        <div class="mb-4">
-            <label class="block text-sm font-medium">Passport Photograph</label>
-            <input type="file" name="passport" required>
-        </div>
-
+        <!-- PASSPORT PHOTO ONLY -->
         <div class="mb-6">
-            <label class="block text-sm font-medium">Signature</label>
-            <input type="file" name="signature" required>
+            <label class="block text-sm font-medium mb-2">
+                Passport Photograph
+            </label>
+
+            <input
+                type="file"
+                name="passport"
+                accept="image/*"
+                required
+                class="w-full border rounded px-3 py-2"
+            >
+
+            <p class="text-xs text-gray-500 mt-1">
+                Upload a clear passport photo (JPG/PNG). Signature is no longer required.
+            </p>
         </div>
 
-        <button class="w-full bg-blue-700 text-white py-3 rounded font-semibold">
+        <button class="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded font-semibold">
             Submit Application
         </button>
     </form>
