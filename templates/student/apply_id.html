@@ -6,7 +6,19 @@
 
     <h2 class="text-2xl font-bold mb-6">Apply for ID Card</h2>
 
-    <!-- ERROR DISPLAY -->
+    <!-- DJANGO MESSAGES -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="mb-4 p-3 rounded
+                {% if message.tags == 'error' %}bg-red-100 border border-red-300 text-red-700
+                {% elif message.tags == 'success' %}bg-green-100 border border-green-300 text-green-700
+                {% else %}bg-gray-100 border border-gray-300 text-gray-700{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- FORM ERRORS -->
     {% if errors %}
         <div class="mb-4 bg-red-100 border border-red-300 text-red-700 p-3 rounded">
             <ul class="list-disc ml-5">
@@ -17,17 +29,29 @@
         </div>
     {% endif %}
 
-    <!-- EXISTING APPLICATION NOTICE -->
-    {% if application and application.is_pending %}
-        <div class="mb-4 bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 rounded">
-            Your application is pending review. You may re-upload your passport if needed.
+    <!-- EXISTING APPLICATION -->
+    {% if application %}
+        <div class="mb-4 bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded">
+            <strong>Status:</strong> {{ application.status }}
+
+            {% if application.passport %}
+                <div class="mt-3">
+                    <p class="text-sm font-medium mb-1">Current Passport:</p>
+                    <img src="{{ application.passport.url }}"
+                         class="w-32 h-40 object-cover border rounded">
+                </div>
+            {% endif %}
         </div>
     {% endif %}
 
-    <form method="post" enctype="multipart/form-data" id="uploadForm">
+    <form method="post"
+          enctype="multipart/form-data"
+          id="uploadForm"
+          novalidate>
+
         {% csrf_token %}
 
-        <!-- PASSPORT PHOTO -->
+        <!-- PASSPORT -->
         <div class="mb-6">
             <label class="block text-sm font-medium mb-2">
                 Passport Photograph
@@ -38,31 +62,32 @@
                 name="passport"
                 id="passportInput"
                 accept="image/jpeg,image/png"
-                required
                 class="w-full border rounded px-3 py-2 bg-white"
+                {% if not application %}required{% endif %}
             >
 
             <p class="text-xs text-gray-500 mt-1">
-                JPG/PNG only. Maximum size: 5MB.
+                JPG/PNG only. Max 5MB.
             </p>
         </div>
 
-        <!-- LIVE PREVIEW -->
+        <!-- PREVIEW -->
         <div id="previewBox" class="mb-6 hidden">
             <p class="text-sm font-medium mb-2">Preview:</p>
-            <img id="passportPreview" class="w-32 h-40 object-cover border rounded">
+            <img id="passportPreview"
+                 class="w-32 h-40 object-cover border rounded">
         </div>
 
         <!-- STATUS -->
-        <div id="uploadStatus" class="text-sm text-blue-700 mb-4 hidden">
+        <div id="uploadStatus"
+             class="text-sm text-blue-700 mb-4 hidden">
             Uploading... please wait.
         </div>
 
         <button
             type="submit"
             id="submitBtn"
-            class="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded font-semibold transition"
-        >
+            class="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded font-semibold">
             Submit Application
         </button>
     </form>
@@ -99,7 +124,7 @@ input.addEventListener("change", function () {
 
 /* ---------- Prevent empty submit ---------- */
 form.addEventListener("submit", function (e) {
-    if (!input.files.length) {
+    if (!input.files.length && !{{ application|yesno:"true,false" }}) {
         e.preventDefault();
         alert("Please select a passport photo.");
         return;

@@ -10,9 +10,6 @@ from .models import IDApplication
 from students.models import Student
 from idcards.utils import generate_id_card
 
-print("FILES:", request.FILES)
-print("POST:", request.POST)
-
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 MAX_FILE_MB = 5
@@ -84,6 +81,10 @@ def save_passport(application, passport):
 # ======================================================
 @login_required
 def apply_for_id(request):
+    
+    print("METHOD:", request.method)
+    print("FILES:", request.FILES)
+    print("POST:", request.POST)
 
     student = get_object_or_404(Student, user=request.user)
     application = IDApplication.objects.filter(student=student).first()
