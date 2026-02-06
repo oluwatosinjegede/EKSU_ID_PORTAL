@@ -10,63 +10,80 @@ from idcards.utils import generate_id_card
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 
 
+# ======================================================
+# APPLY FOR ID  (PASSPORT ONLY)
+# ======================================================
 @login_required
 def apply_for_id(request):
     student = get_object_or_404(Student, user=request.user)
 
+    # Prevent duplicate applications
+    existing_app = IDApplication.objects.filter(student=student).first()
+
     if request.method == "POST":
         passport = request.FILES.get("passport")
-        signature = request.FILES.get("signature")
 
-        # ---- validation ----
         errors = []
 
+        # -------- Validation --------
         if not passport:
             errors.append("Passport photograph is required.")
 
-        if not signature:
-            errors.append("Signature image is required.")
-
         if passport and passport.content_type not in ALLOWED_IMAGE_TYPES:
             errors.append("Passport must be a JPG or PNG image.")
-
-        if signature and signature.content_type not in ALLOWED_IMAGE_TYPES:
-            errors.append("Signature must be a JPG or PNG image.")
 
         if errors:
             return render(
                 request,
                 "apply.html",
-                {"errors": errors},
+                {
+                    "errors": errors,
+                    "application": existing_app,
+                },
             )
 
-        # ---- atomic create (prevents partial saves) ----
+        # -------- Atomic save (Railway safe) --------
         with transaction.atomic():
-            IDApplication.objects.create(
-                student=student,
-                passport=passport,
-                signature=signature,
-            )
+
+            if existing_app:
+                # Replace passport if re-uploading
+                existing_app.passport = passport
+                existing_app.status = IDApplication.STATUS_PENDING
+                existing_app.reviewed_by = ""
+                existing_app.save(update_fields=["passport", "status", "reviewed_by"])
+            else:
+                IDApplication.objects.create(
+                    student=student,
+                    passport=passport,
+                )
 
         return redirect("dashboard")
 
-    return render(request, "apply.html")
+    return render(
+        request,
+        "apply.html",
+        {
+            "application": existing_app,
+        },
+    )
 
 
+# ======================================================
+# APPROVE ID  (AUTO GENERATE CARD)
+# ======================================================
 @login_required
 def approve_id(request, app_id):
     application = get_object_or_404(IDApplication, id=app_id)
 
-    # prevent double-approval
-    if application.status == "APPROVED":
+    if application.status == IDApplication.STATUS_APPROVED:
         return redirect("admin_dashboard")
 
     with transaction.atomic():
-        application.status = "APPROVED"
+        application.status = IDApplication.STATUS_APPROVED
         application.reviewed_by = request.user.username
         application.save(update_fields=["status", "reviewed_by"])
 
-        # idempotent card generation (must use get_or_create internally)
+        # Safe / idempotent generator
         generate_id_card(application)
 
     return redirect("admin_dashboard")
