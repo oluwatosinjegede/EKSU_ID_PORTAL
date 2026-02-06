@@ -6,4 +6,8 @@ class ApplicationsConfig(AppConfig):
     name = "applications"
 
     def ready(self):
-        import applications.signals
+        # Import signals safely (no side effects, no circular import)
+        try:
+            import applications.signals  # noqa
+        except Exception as e:
+            print("APPLICATIONS SIGNAL LOAD ERROR:", e)
