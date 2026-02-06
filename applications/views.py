@@ -7,7 +7,6 @@ from .models import IDApplication
 from students.models import Student
 from idcards.utils import generate_id_card
 
-
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 MAX_FILE_MB = 5
 
@@ -24,9 +23,12 @@ def apply_for_id(request):
 
         passport = request.FILES.get("passport")
 
-        # ---- VALIDATION ----
+        # DEBUG (REMOVE AFTER FIXED)
+        print("FILES RECEIVED:", request.FILES)
+
         errors = []
 
+        # ---------- VALIDATION ----------
         if not passport:
             errors.append("Passport photograph is required.")
         else:
@@ -43,37 +45,50 @@ def apply_for_id(request):
             return render(
                 request,
                 "apply.html",
-                {
-                    "errors": errors,
-                    "application": application,
-                },
+                {"errors": errors, "application": application},
             )
 
-        # ---- SAVE (Cloudinary safe) ----
+        # ---------- SAVE (Cloudinary Safe) ----------
         try:
             with transaction.atomic():
 
                 if application:
-                    # Prevent change after approval
+
                     if application.status == IDApplication.STATUS_APPROVED:
                         messages.error(request, "Application already approved.")
                         return redirect("dashboard")
 
+                    # DELETE OLD FILE FROM CLOUDINARY (optional but recommended)
+                    if application.passport:
+                        application.passport.delete(save=False)
+
+                    # IMPORTANT: assign then force save
                     application.passport = passport
                     application.status = IDApplication.STATUS_PENDING
                     application.reviewed_by = ""
-                    application.save()
+
+                    application.save()   # <-- MUST be full save
 
                 else:
-                    IDApplication.objects.create(
+                    application = IDApplication.objects.create(
                         student=student,
                         passport=passport,
                     )
 
+                # ---------- VERIFY SAVE ----------
+                application.refresh_from_db()
+
+                if not application.passport:
+                    raise Exception("Passport did not persist after save")
+
         except Exception as e:
-            print("UPLOAD ERROR:", e)
-            messages.error(request, "Passport upload failed. Please try again.")
-            return redirect("dashboard")
+            print("UPLOAD ERROR:", str(e))
+            messages.error(request, "Passport upload failed. Check server logs.")
+            return render(
+                request,
+                "apply.html",
+                {"application": application},
+            )
 
         messages.success(request, "Passport uploaded successfully.")
         return redirect("dashboard")
@@ -98,12 +113,11 @@ def approve_id(request, app_id):
             application.reviewed_by = request.user.username
             application.save(update_fields=["status", "reviewed_by"])
 
-            # Generate ID card (must be idempotent)
             generate_id_card(application)
 
     except Exception as e:
-        print("ID GENERATION ERROR:", e)
-        messages.error(request, "ID generation failed. Check logs.")
+        print("ID GENERATION ERROR:", str(e))
+        messages.error(request, "ID generation failed.")
         return redirect("admin_dashboard")
 
     messages.success(request, "Application approved and ID card generated.")
