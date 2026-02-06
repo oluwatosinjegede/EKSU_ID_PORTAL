@@ -4,7 +4,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('students', '0012_alter_student_created_at_alter_student_department_and_more.py'),  # keep your last successful migration here
+        ('students', '0012_alter_student_created_at_alter_student_department_and_more'),  # keep your last successful migration here
     ]
 
     operations = [
