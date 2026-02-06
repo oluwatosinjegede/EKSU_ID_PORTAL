@@ -46,18 +46,13 @@ class Command(BaseCommand):
             sample = file.read(2048)
             file.seek(0)
 
-            # =========================
-            # Detect delimiter safely
-            # =========================
             try:
                 dialect = csv.Sniffer().sniff(sample, delimiters=";,")
                 reader = csv.DictReader(file, dialect=dialect)
             except csv.Error:
                 reader = csv.DictReader(file)
 
-            # =========================
-            # Fix broken Excel CSV (single column)
-            # =========================
+            # Fix Excel single-column CSV
             if reader.fieldnames and len(reader.fieldnames) == 1:
                 headers = [h.strip() for h in reader.fieldnames[0].split(",")]
                 reader.fieldnames = headers
@@ -72,18 +67,12 @@ class Command(BaseCommand):
             else:
                 rows = reader
 
-            # =========================
-            # PROCESS ROWS
-            # =========================
             for row in rows:
 
                 matric = (row.get("matric_no") or "").strip()
 
-                # Skip header accidentally read as row
-                if matric.lower() == "matric_no":
-                    continue
-
-                if not matric:
+                # Skip header or bad row
+                if not matric or matric.lower() in ("matric_no", "matric"):
                     skipped += 1
                     continue
 
@@ -96,9 +85,9 @@ class Command(BaseCommand):
 
                 with transaction.atomic():
 
-                    # =========================
-                    # CREATE / UPDATE USER
-                    # =========================
+                    # -------------------------
+                    # USER
+                    # -------------------------
                     user, user_created = User.objects.get_or_create(
                         username=matric,
                         defaults={
@@ -107,18 +96,17 @@ class Command(BaseCommand):
                         },
                     )
 
-                    # Force overwrite names (fix earlier bad imports)
-                    if not user_created:
+                    if user_created:
+                        user.set_password("ChangeMe123!")
+                        user.save()
+                    else:
                         user.first_name = first_name
                         user.last_name = last_name
                         user.save(update_fields=["first_name", "last_name"])
-                    else:
-                        user.set_password("ChangeMe123!")
-                        user.save()
 
-                    # =========================
-                    # CREATE / UPDATE STUDENT
-                    # =========================
+                    # -------------------------
+                    # STUDENT
+                    # -------------------------
                     student, created_flag = Student.objects.update_or_create(
                         matric_no=matric,
                         defaults={
@@ -132,30 +120,26 @@ class Command(BaseCommand):
                         },
                     )
 
-                # =========================
-                # COUNTERS
-                # =========================
                 if created_flag:
                     created += 1
                 else:
                     updated += 1
 
-                # =========================
+                # -------------------------
                 # FORCE REBUILD ID CARD
-                # =========================
+                # -------------------------
                 if FORCE_REBUILD:
                     try:
-                        from idcards.models import IDCard
-                        from idcards.generator import generate_id_card as build_id
-
-                        id_card, _ = IDCard.objects.get_or_create(student=student)
-
-                        # Force rebuild image even if exists
-                        if id_card.image:
-                            id_card.image.delete(save=False)
-
-                        build_id(id_card)
-                        rebuilt += 1
-
+                        app = IDApplication.objects.filter(student=student).first()
+                        if app:
+                            generate_id_card(app)
+                            rebuilt += 1
                     except Exception as e:
                         print(f"Rebuild failed for {matric}: {e}")
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Import complete: {created} created, {updated} updated, "
+                f"{rebuilt} ID rebuilt, {skipped} skipped"
+            )
+        )
