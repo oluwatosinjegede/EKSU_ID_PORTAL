@@ -17,14 +17,13 @@ UPLOAD_RETRIES = 3
 
 
 # ======================================================
-# SAFE IMAGE VALIDATION
+# VALIDATE PASSPORT IMAGE (SAFE)
 # ======================================================
 def validate_passport(file):
-    errors = []
-
     if not file:
-        errors.append("Passport photograph is required.")
-        return errors
+        return ["Passport photograph is required."]
+
+    errors = []
 
     if file.size == 0:
         errors.append("Uploaded file is empty.")
@@ -35,11 +34,11 @@ def validate_passport(file):
     if file.size > MAX_FILE_MB * 1024 * 1024:
         errors.append("Passport file too large (max 5MB).")
 
-    # Verify real image (not fake renamed file)
+    # Verify real image (not renamed fake file)
     try:
         img = Image.open(file)
         img.verify()
-        file.seek(0)   # IMPORTANT: reset pointer after PIL read
+        file.seek(0)  # reset pointer after verify
     except Exception:
         errors.append("Invalid or corrupted image file.")
 
@@ -47,42 +46,38 @@ def validate_passport(file):
 
 
 # ======================================================
-# SAFE CLOUDINARY SAVE WITH RETRY
+# SAVE PASSPORT WITH RETRY (CLOUDINARY SAFE)
 # ======================================================
 def save_passport(application, passport):
 
     last_error = None
 
     for attempt in range(UPLOAD_RETRIES):
-
         try:
-            with transaction.atomic():
+            # Remove old Cloudinary file (if exists)
+            if application.passport:
+                application.passport.delete(save=False)
 
-                # Remove old file (Cloudinary cleanup)
-                if application.passport:
-                    application.passport.delete(save=False)
+            application.passport = passport
+            application.save()
 
-                application.passport = passport
-                application.save()
+            application.refresh_from_db()
 
-                # Verify persistence
-                application.refresh_from_db()
+            if not application.passport:
+                raise RuntimeError("Passport not persisted")
 
-                if not application.passport:
-                    raise Exception("Passport not persisted")
-
-                return True
+            return True
 
         except Exception as e:
             last_error = e
-            print(f"UPLOAD RETRY {attempt+1} FAILED:", str(e))
+            print(f"[UPLOAD RETRY {attempt+1}] {str(e)}")
             time.sleep(1)
 
     raise last_error
 
 
 # ======================================================
-# APPLY FOR ID (BULLETPROOF)
+# APPLY FOR ID
 # ======================================================
 @login_required
 def apply_for_id(request):
@@ -93,9 +88,6 @@ def apply_for_id(request):
     if request.method == "POST":
 
         passport = request.FILES.get("passport")
-
-        # DEBUG (remove after confirmed working)
-        print("FILES RECEIVED:", request.FILES)
 
         # ---------- VALIDATION ----------
         errors = validate_passport(passport)
@@ -121,15 +113,15 @@ def apply_for_id(request):
 
                 save_passport(application, passport)
 
-                # Reset review if re-upload
+                # Reset review state if re-upload
                 if application.status != IDApplication.STATUS_PENDING:
                     application.status = IDApplication.STATUS_PENDING
                     application.reviewed_by = ""
                     application.save(update_fields=["status", "reviewed_by"])
 
         except Exception as e:
-            print("FINAL UPLOAD FAILURE:", str(e))
-            messages.error(request, "Passport upload failed. Try again.")
+            print("[FINAL UPLOAD FAILURE]", str(e))
+            messages.error(request, "Passport upload failed. Please try again.")
             return render(request, "apply.html", {"application": application})
 
         messages.success(request, "Passport uploaded successfully.")
@@ -139,7 +131,7 @@ def apply_for_id(request):
 
 
 # ======================================================
-# APPROVE ID  (AUTO GENERATE CARD)
+# APPROVE ID (SAFE + IDEMPOTENT)
 # ======================================================
 @login_required
 def approve_id(request, app_id):
@@ -157,10 +149,11 @@ def approve_id(request, app_id):
             application.reviewed_by = request.user.username
             application.save(update_fields=["status", "reviewed_by"])
 
+            # Generate ID card (must be idempotent)
             generate_id_card(application)
 
     except Exception as e:
-        print("ID GENERATION ERROR:", str(e))
+        print("[ID GENERATION ERROR]", str(e))
         messages.error(request, "ID generation failed.")
         return redirect("admin_dashboard")
 
