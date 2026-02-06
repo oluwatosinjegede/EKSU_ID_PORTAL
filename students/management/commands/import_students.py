@@ -48,9 +48,7 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
 
-                # ----------------------------
-                # Handle BROKEN Excel CSV (single column)
-                # ----------------------------
+                # Handle broken Excel CSV (single column)
                 if len(raw_row) == 1:
                     raw_row = raw_row[0].split(",")
 
@@ -60,8 +58,8 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
 
-                # Safe unpack (phone optional)
-                first_name = row[0] if len(row) > 0 else ""
+                # Safe unpack
+                first_name = row[0]
                 middle_name = row[1] if len(row) > 1 else ""
                 last_name = row[2] if len(row) > 2 else ""
                 matric = row[3] if len(row) > 3 else ""
@@ -69,10 +67,8 @@ class Command(BaseCommand):
                 level = row[5] if len(row) > 5 else ""
                 phone = row[6] if len(row) > 6 else ""
 
-                # ----------------------------
-                # Skip header / bad rows
-                # ----------------------------
-                if not matric or matric.lower() in ("matric_no", "matric"):
+                # Skip header / invalid row
+                if not matric or matric.lower() in ("matric_no", "matric", "matric_number"):
                     skipped += 1
                     continue
 
@@ -97,7 +93,7 @@ class Command(BaseCommand):
 
                     # ---------------- STUDENT ----------------
                     student, created_flag = Student.objects.update_or_create(
-                        matric_no=matric,
+                        matric_number=matric,   # ? FIXED FIELD NAME
                         defaults={
                             "user": user,
                             "first_name": first_name,
