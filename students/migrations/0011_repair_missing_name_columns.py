@@ -2,6 +2,11 @@ from django.db import migrations, connection
 
 
 def add_missing_columns(apps, schema_editor):
+
+    # Skip for SQLite (local dev)
+    if connection.vendor != "postgresql":
+        return
+
     table = "students_student"
 
     with connection.cursor() as cursor:
