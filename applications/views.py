@@ -10,6 +10,8 @@ from .models import IDApplication
 from students.models import Student
 from idcards.utils import generate_id_card
 
+import traceback
+
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 MAX_FILE_MB = 5
 UPLOAD_RETRIES = 3
@@ -81,8 +83,13 @@ def save_passport(application, passport):
 @login_required
 def apply_for_id(request):
 
-    print("METHOD:", request.method)
-    print("FILES:", request.FILES)
+    except Exception as e:
+       print("==== UPLOAD FAILURE ====")
+       print("ERROR:", str(e))
+       traceback.print_exc()
+       print("========================")
+       messages.error(request, f"Upload failed: {str(e)}")
+       return redirect("student_apply")
 
     student = get_object_or_404(Student, user=request.user)
     application = IDApplication.objects.filter(student=student).first()
