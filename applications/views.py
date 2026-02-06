@@ -10,6 +10,9 @@ from .models import IDApplication
 from students.models import Student
 from idcards.utils import generate_id_card
 
+print("FILES:", request.FILES)
+print("POST:", request.POST)
+
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 MAX_FILE_MB = 5
@@ -87,48 +90,55 @@ def apply_for_id(request):
 
     if request.method == "POST":
 
+        print("FILES:", request.FILES)
+
         passport = request.FILES.get("passport")
 
-        # ---------- VALIDATION ----------
-        errors = validate_passport(passport)
+        # HARD CHECK
+        if not passport:
+            messages.error(request, "No file received by server.")
+            return redirect("student_apply")   # <-- forces redirect
 
-        if errors:
-            return render(
-                request,
-                "apply.html",
-                {"errors": errors, "application": application},
-            )
-
-        # ---------- SAVE ----------
         try:
-            with transaction.atomic():
+            from PIL import Image
+            img = Image.open(passport)
+            img.verify()
+            passport.seek(0)
+        except Exception:
+            messages.error(request, "Invalid image.")
+            return redirect("student_apply")
 
-                if not application:
-                    application = IDApplication.objects.create(student=student)
+        try:
+            if not application:
+                application = IDApplication.objects.create(student=student)
 
-                # Prevent editing after approval
-                if application.status == IDApplication.STATUS_APPROVED:
-                    messages.error(request, "Application already approved.")
-                    return redirect("dashboard")
+            if application.status == IDApplication.STATUS_APPROVED:
+                messages.error(request, "Application already approved.")
+                return redirect("dashboard")
 
-                save_passport(application, passport)
+            # Delete old passport
+            if application.passport:
+                application.passport.delete(save=False)
 
-                # Reset review state if re-upload
-                if application.status != IDApplication.STATUS_PENDING:
-                    application.status = IDApplication.STATUS_PENDING
-                    application.reviewed_by = ""
-                    application.save(update_fields=["status", "reviewed_by"])
+            application.passport = passport
+            application.status = IDApplication.STATUS_PENDING
+            application.reviewed_by = ""
+            application.save()
+
+            application.refresh_from_db()
+
+            if not application.passport:
+                raise Exception("File did not persist")
 
         except Exception as e:
-            print("[FINAL UPLOAD FAILURE]", str(e))
-            messages.error(request, "Passport upload failed. Please try again.")
-            return render(request, "apply.html", {"application": application})
+            print("UPLOAD ERROR:", e)
+            messages.error(request, "Upload failed. See logs.")
+            return redirect("student_apply")
 
         messages.success(request, "Passport uploaded successfully.")
-        return redirect("dashboard")
+        return redirect("dashboard")   # <-- MUST BE 302
 
     return render(request, "apply.html", {"application": application})
-
 
 # ======================================================
 # APPROVE ID (SAFE + IDEMPOTENT)
