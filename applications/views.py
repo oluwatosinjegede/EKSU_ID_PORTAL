@@ -10,7 +10,6 @@ from .models import IDApplication
 from students.models import Student
 from idcards.utils import generate_id_card
 
-
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 MAX_FILE_MB = 5
 UPLOAD_RETRIES = 3
@@ -81,63 +80,69 @@ def save_passport(application, passport):
 # ======================================================
 @login_required
 def apply_for_id(request):
-    
+
     print("METHOD:", request.method)
     print("FILES:", request.FILES)
-    print("POST:", request.POST)
 
     student = get_object_or_404(Student, user=request.user)
     application = IDApplication.objects.filter(student=student).first()
 
     if request.method == "POST":
 
-        print("FILES:", request.FILES)
-
         passport = request.FILES.get("passport")
 
-        # HARD CHECK
+        # ===============================
+        # HARD CHECK — DID FILE ARRIVE?
+        # ===============================
         if not passport:
             messages.error(request, "No file received by server.")
-            return redirect("student_apply")   # <-- forces redirect
+            return redirect("student_apply")
 
+        # ===============================
+        # VALIDATE IMAGE (REAL FILE)
+        # ===============================
         try:
-            from PIL import Image
             img = Image.open(passport)
             img.verify()
             passport.seek(0)
         except Exception:
-            messages.error(request, "Invalid image.")
+            messages.error(request, "Invalid or corrupted image.")
             return redirect("student_apply")
 
+        # ===============================
+        # SAVE PASSPORT (CLOUDINARY SAFE)
+        # ===============================
         try:
-            if not application:
-                application = IDApplication.objects.create(student=student)
+            with transaction.atomic():
 
-            if application.status == IDApplication.STATUS_APPROVED:
-                messages.error(request, "Application already approved.")
-                return redirect("dashboard")
+                if not application:
+                    application = IDApplication.objects.create(student=student)
 
-            # Delete old passport
-            if application.passport:
-                application.passport.delete(save=False)
+                if application.status == IDApplication.STATUS_APPROVED:
+                    messages.error(request, "Application already approved.")
+                    return redirect("dashboard")
 
-            application.passport = passport
-            application.status = IDApplication.STATUS_PENDING
-            application.reviewed_by = ""
-            application.save()
+                # Remove old Cloudinary file
+                if application.passport:
+                    application.passport.delete(save=False)
 
-            application.refresh_from_db()
+                application.passport = passport
+                application.status = IDApplication.STATUS_PENDING
+                application.reviewed_by = ""
+                application.save()
 
-            if not application.passport:
-                raise Exception("File did not persist")
+                application.refresh_from_db()
+
+                if not application.passport:
+                    raise Exception("Passport did not persist")
 
         except Exception as e:
-            print("UPLOAD ERROR:", e)
-            messages.error(request, "Upload failed. See logs.")
+            print("UPLOAD ERROR:", str(e))
+            messages.error(request, "Upload failed. Check server logs.")
             return redirect("student_apply")
 
         messages.success(request, "Passport uploaded successfully.")
-        return redirect("dashboard")   # <-- MUST BE 302
+        return redirect("dashboard")
 
     return render(request, "apply.html", {"application": application})
 
