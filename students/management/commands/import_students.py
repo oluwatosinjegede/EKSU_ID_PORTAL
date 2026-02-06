@@ -18,18 +18,15 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
 
-        # =========================
-        # SAFETY SWITCH (Railway)
-        # =========================
+        # ----------------------------
+        # SAFETY SWITCH
+        # ----------------------------
         if os.getenv("IMPORT_STUDENTS") != "true":
             self.stdout.write("IMPORT_STUDENTS not enabled. Skipping import.")
             return
 
         FORCE_REBUILD = os.getenv("REBUILD_STUDENTS") == "true"
 
-        # =========================
-        # CSV PATH
-        # =========================
         csv_path = Path("students/data/students.csv")
 
         if not csv_path.exists():
@@ -43,51 +40,45 @@ class Command(BaseCommand):
 
         with csv_path.open(encoding="utf-8-sig", newline="") as file:
 
-            sample = file.read(2048)
-            file.seek(0)
+            raw_reader = csv.reader(file)
 
-            try:
-                dialect = csv.Sniffer().sniff(sample, delimiters=";,")
-                reader = csv.DictReader(file, dialect=dialect)
-            except csv.Error:
-                reader = csv.DictReader(file)
+            for raw_row in raw_reader:
 
-            # Fix Excel single-column CSV
-            if reader.fieldnames and len(reader.fieldnames) == 1:
-                headers = [h.strip() for h in reader.fieldnames[0].split(",")]
-                reader.fieldnames = headers
+                if not raw_row:
+                    skipped += 1
+                    continue
 
-                def fixed_rows():
-                    for row in reader:
-                        raw = list(row.values())[0]
-                        values = [v.strip() for v in raw.split(",")]
-                        yield dict(zip(headers, values))
+                # ----------------------------
+                # Handle BROKEN Excel CSV (single column)
+                # ----------------------------
+                if len(raw_row) == 1:
+                    raw_row = raw_row[0].split(",")
 
-                rows = fixed_rows()
-            else:
-                rows = reader
+                row = [v.strip() for v in raw_row]
 
-            for row in rows:
+                if len(row) < 6:
+                    skipped += 1
+                    continue
 
-                matric = (row.get("matric_no") or "").strip()
+                # Safe unpack (phone optional)
+                first_name = row[0] if len(row) > 0 else ""
+                middle_name = row[1] if len(row) > 1 else ""
+                last_name = row[2] if len(row) > 2 else ""
+                matric = row[3] if len(row) > 3 else ""
+                department = row[4] if len(row) > 4 else ""
+                level = row[5] if len(row) > 5 else ""
+                phone = row[6] if len(row) > 6 else ""
 
-                # Skip header or bad row
+                # ----------------------------
+                # Skip header / bad rows
+                # ----------------------------
                 if not matric or matric.lower() in ("matric_no", "matric"):
                     skipped += 1
                     continue
 
-                first_name = (row.get("first_name") or "").strip()
-                middle_name = (row.get("middle_name") or "").strip()
-                last_name = (row.get("last_name") or "").strip()
-                department = (row.get("department") or "").strip()
-                level = (row.get("level") or "").strip()
-                phone = (row.get("phone") or "").strip()
-
                 with transaction.atomic():
 
-                    # -------------------------
-                    # USER
-                    # -------------------------
+                    # ---------------- USER ----------------
                     user, user_created = User.objects.get_or_create(
                         username=matric,
                         defaults={
@@ -104,9 +95,7 @@ class Command(BaseCommand):
                         user.last_name = last_name
                         user.save(update_fields=["first_name", "last_name"])
 
-                    # -------------------------
-                    # STUDENT
-                    # -------------------------
+                    # ---------------- STUDENT ----------------
                     student, created_flag = Student.objects.update_or_create(
                         matric_no=matric,
                         defaults={
@@ -125,9 +114,7 @@ class Command(BaseCommand):
                 else:
                     updated += 1
 
-                # -------------------------
-                # FORCE REBUILD ID CARD
-                # -------------------------
+                # ---------------- FORCE ID REBUILD ----------------
                 if FORCE_REBUILD:
                     try:
                         app = IDApplication.objects.filter(student=student).first()
