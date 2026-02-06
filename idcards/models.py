@@ -1,7 +1,7 @@
 from django.db import models
 from students.models import Student
 import uuid
-
+from cloudinary.models import CloudinaryField
 
 # =========================
 # SAFE PATH BUILDERS
