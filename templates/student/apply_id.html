@@ -24,7 +24,7 @@
         </div>
     {% endif %}
 
-    <form method="post" enctype="multipart/form-data" novalidate>
+    <form method="post" enctype="multipart/form-data" id="uploadForm">
         {% csrf_token %}
 
         <!-- PASSPORT PHOTO -->
@@ -36,14 +36,14 @@
             <input
                 type="file"
                 name="passport"
+                id="passportInput"
                 accept="image/jpeg,image/png"
                 required
                 class="w-full border rounded px-3 py-2 bg-white"
-                onchange="previewPassport(event)"
             >
 
             <p class="text-xs text-gray-500 mt-1">
-                Upload a clear passport photo (JPG/PNG, max 5MB).
+                JPG/PNG only. Maximum size: 5MB.
             </p>
         </div>
 
@@ -53,8 +53,14 @@
             <img id="passportPreview" class="w-32 h-40 object-cover border rounded">
         </div>
 
+        <!-- STATUS -->
+        <div id="uploadStatus" class="text-sm text-blue-700 mb-4 hidden">
+            Uploading... please wait.
+        </div>
+
         <button
             type="submit"
+            id="submitBtn"
             class="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded font-semibold transition"
         >
             Submit Application
@@ -63,23 +69,46 @@
 </div>
 
 <script>
-function previewPassport(event) {
-    const file = event.target.files[0];
+const input = document.getElementById("passportInput");
+const preview = document.getElementById("passportPreview");
+const previewBox = document.getElementById("previewBox");
+const form = document.getElementById("uploadForm");
+const btn = document.getElementById("submitBtn");
+const status = document.getElementById("uploadStatus");
+
+/* ---------- Preview + Validate ---------- */
+input.addEventListener("change", function () {
+    const file = this.files[0];
     if (!file) return;
 
-    // Reject large files early (client-side)
-    if (file.size > 5 * 1024 * 1024) {
-        alert("File too large. Maximum allowed is 5MB.");
-        event.target.value = "";
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+        alert("Only JPG or PNG allowed.");
+        this.value = "";
         return;
     }
 
-    const preview = document.getElementById("passportPreview");
-    const box = document.getElementById("previewBox");
+    if (file.size > 5 * 1024 * 1024) {
+        alert("File too large (max 5MB).");
+        this.value = "";
+        return;
+    }
 
     preview.src = URL.createObjectURL(file);
-    box.classList.remove("hidden");
-}
+    previewBox.classList.remove("hidden");
+});
+
+/* ---------- Prevent empty submit ---------- */
+form.addEventListener("submit", function (e) {
+    if (!input.files.length) {
+        e.preventDefault();
+        alert("Please select a passport photo.");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Uploading...";
+    status.classList.remove("hidden");
+});
 </script>
 
 {% endblock %}
