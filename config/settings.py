@@ -10,18 +10,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --------------------------------------------------
 # Site URL (Used for QR verify link)
-# IMPORTANT: Do NOT end with '/'
 # --------------------------------------------------
 SITE_URL = os.getenv("SITE_URL", "http://localhost:8000").rstrip("/")
 
 # --------------------------------------------------
 # Core settings
 # --------------------------------------------------
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "unsafe-dev-key")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-dev-key")
 
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
-ALLOWED_HOSTS = os.environ.get(
+ALLOWED_HOSTS = os.getenv(
     "DJANGO_ALLOWED_HOSTS",
     ".up.railway.app,localhost,127.0.0.1"
 ).split(",")
@@ -44,6 +43,8 @@ INSTALLED_APPS = [
     "accounts",
     "students",
     "idcards",
+
+    # Cloudinary
     "cloudinary",
     "cloudinary_storage",
 ]
@@ -108,7 +109,9 @@ else:
         }
     }
 
-
+# --------------------------------------------------
+# REST Framework (required for file uploads)
+# --------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.MultiPartParser",
@@ -140,8 +143,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # --------------------------------------------------
-# Media (Local storage for ID cards + passport)
-# Railway requires Django to serve media itself
+# Media (fallback local — rarely used with Cloudinary)
 # --------------------------------------------------
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -154,11 +156,10 @@ LOGIN_REDIRECT_URL = "/student/dashboard/"
 LOGOUT_REDIRECT_URL = "/"
 
 # --------------------------------------------------
-# CSRF / SSL (Railway-safe)
+# Railway SSL / Proxy
 # --------------------------------------------------
 CSRF_TRUSTED_ORIGINS = [
     "https://*.up.railway.app",
-    "https://eksuidportal.up.railway.app",
 ]
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -167,22 +168,52 @@ SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
 # --------------------------------------------------
-# Prevent large upload failures (passport images)
+# Large Upload Handling (passport safe)
 # --------------------------------------------------
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+FILE_UPLOAD_HANDLERS = [
+    "django.core.files.uploadhandler.MemoryFileUploadHandler",
+    "django.core.files.uploadhandler.TemporaryFileUploadHandler",
+]
 
 # --------------------------------------------------
 # Default primary key
 # --------------------------------------------------
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# --------------------------------------------------
+# Cloudinary Configuration (Bulletproof)
+# --------------------------------------------------
 
-cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-)
+# Option 1: Full URL (preferred)
+if os.getenv("CLOUDINARY_URL"):
+    cloudinary.config(cloudinary_url=os.getenv("CLOUDINARY_URL"))
+
+# Option 2: Manual keys (fallback)
+else:
+    cloudinary.config(
+        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+        api_key=os.getenv("CLOUDINARY_API_KEY"),
+        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+        secure=True,
+    )
 
 DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
+# --------------------------------------------------
+# Logging (critical for upload debugging)
+# --------------------------------------------------
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "django": {"handlers": ["console"], "level": "INFO"},
+        "cloudinary": {"handlers": ["console"], "level": "INFO"},
+    },
+}
