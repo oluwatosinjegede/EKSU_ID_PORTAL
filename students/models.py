@@ -7,42 +7,42 @@ class Student(models.Model):
     # CORE IDENTITY
     # =========================
     matric_number = models.CharField(
-        max_length=30,
+        max_length=50,          # Increased (prevents truncation errors)
         unique=True,
-        db_index=True
+        db_index=True,
     )
 
     first_name = models.CharField(
-        max_length=50,
+        max_length=100,         # Increased for long names
         blank=True,
-        default=""
+        default="",
     )
 
     middle_name = models.CharField(
-        max_length=50,
+        max_length=100,
         blank=True,
-        default=""
+        default="",
     )
 
     last_name = models.CharField(
-        max_length=50,
+        max_length=100,
         blank=True,
-        default=""
+        default="",
     )
 
     # =========================
     # ACADEMIC
     # =========================
     department = models.CharField(
-        max_length=120,
+        max_length=150,         # Increased (e.g. PUBLIC ADMINISTRATION)
         blank=True,
-        default=""
+        default="",
     )
 
     level = models.CharField(
-        max_length=30,
+        max_length=50,
         blank=True,
-        default=""
+        default="",
     )
 
     # =========================
@@ -51,7 +51,7 @@ class Student(models.Model):
     phone = models.CharField(
         max_length=30,
         blank=True,
-        default=""
+        default="",
     )
 
     # =========================
@@ -60,27 +60,24 @@ class Student(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="student"
+        related_name="student",
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-
-
+    # Safe for existing rows during migration
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        null=True,
+        blank=True,
+    )
 
     # =========================
     # SAFE FULL NAME PROPERTY
     # =========================
     @property
     def full_name(self):
-        name = " ".join(
-            part for part in [
-                self.first_name,
-                self.middle_name,
-                self.last_name
-            ] if part
-        ).strip()
-
-        return name or self.matric_number
+        parts = [self.first_name, self.middle_name, self.last_name]
+        name = " ".join(p for p in parts if p).strip()
+        return name if name else self.matric_number
 
     # =========================
     # STRING REPRESENTATION
