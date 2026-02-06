@@ -3,6 +3,12 @@ from django.conf import settings
 import os
 import qrcode
 
+from io import BytesIO
+from django.core.files.base import ContentFile
+
+
+
+
 
 # =========================
 # SAFE FONT LOADER
@@ -89,10 +95,10 @@ def paste_passport(card, idcard):
     except Exception:
         pass
 
+# =========================
+# MAIN GENERATOR (Cloudinary)
+# =========================
 
-# =========================
-# MAIN GENERATOR
-# =========================
 def generate_id_card(idcard):
 
     student = idcard.student
@@ -122,7 +128,7 @@ def generate_id_card(idcard):
     # ================= QR CODE =================
     verify_url = f"{settings.SITE_URL}/verify/{idcard.uid}/"
     qr_img = create_qr_code(verify_url).resize((160, 160))
-    card.paste(qr_img, (820, 380))   # moved up + bigger
+    card.paste(qr_img, (820, 380))
 
     # ================= FOOTER =================
     draw.rectangle((0, height - 80, width, height), fill=(0, 102, 0))
@@ -131,16 +137,20 @@ def generate_id_card(idcard):
     # ================= WATERMARK =================
     card = apply_logo_watermark(card)
 
-    # ================= SAVE =================
-    output_dir = os.path.join(settings.MEDIA_ROOT, "idcards")
-    os.makedirs(output_dir, exist_ok=True)
+    # ================= SAVE TO CLOUDINARY =================
 
-    filename = f"{matric or idcard.uid}.png"
-    output_path = os.path.join(output_dir, filename)
+    # Save image to memory buffer (not filesystem)
+    buffer = BytesIO()
+    card.save(buffer, format="PNG")
+    buffer.seek(0)
 
-    card.save(output_path, "PNG")
+    filename = f"idcards/{matric or idcard.uid}.png"
 
-    idcard.image.name = f"idcards/{filename}"
-    idcard.save(update_fields=["image"])
+    # Save via Django storage (Cloudinary backend)
+    idcard.image.save(
+        filename,
+        ContentFile(buffer.read()),
+        save=True,
+    )
 
-    return output_path
+    return idcard.image.url

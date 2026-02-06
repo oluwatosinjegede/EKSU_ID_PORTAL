@@ -29,20 +29,22 @@ class IDCard(models.Model):
     uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     # Uploaded passport photo
-    passport = models.ImageField(
+    passport = CloudinaryField(
         upload_to=passport_upload_path,
         blank=True,
         null=True,
     )
 
     # Generated ID card image
-    image = models.ImageField(
+    image = CloudinaryField(
         upload_to=idcard_upload_path,
         blank=True,
         null=True,
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    image = CloudinaryField("image", blank=True, null=True)
 
     # =========================
     # SAFE NAME BUILDER
