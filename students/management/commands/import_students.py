@@ -145,16 +145,17 @@ class Command(BaseCommand):
                 # =========================
                 if FORCE_REBUILD:
                     try:
-                        app = IDApplication.objects.filter(student=student).first()
-                        if app:
-                            generate_id_card(app)
-                            rebuilt += 1
+                        from idcards.models import IDCard
+                        from idcards.generator import generate_id_card as build_id
+
+                        id_card, _ = IDCard.objects.get_or_create(student=student)
+
+                        # Force rebuild image even if exists
+                        if id_card.image:
+                            id_card.image.delete(save=False)
+
+                        build_id(id_card)
+                        rebuilt += 1
+
                     except Exception as e:
                         print(f"Rebuild failed for {matric}: {e}")
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Import complete: {created} created, {updated} updated, "
-                f"{rebuilt} ID rebuilt, {skipped} skipped"
-            )
-        )
