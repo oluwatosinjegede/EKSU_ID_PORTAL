@@ -14,13 +14,10 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Import students from CSV (Railway-safe, FORCE rebuild capable)"
+    help = "Import students from CSV (robust, Railway-safe, rebuild capable)"
 
     def handle(self, *args, **options):
 
-        # ----------------------------
-        # SAFETY SWITCH
-        # ----------------------------
         if os.getenv("IMPORT_STUDENTS") != "true":
             self.stdout.write("IMPORT_STUDENTS not enabled. Skipping import.")
             return
@@ -33,48 +30,41 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR("CSV file not found"))
             return
 
-        created = 0
-        updated = 0
-        rebuilt = 0
-        skipped = 0
+        created = updated = rebuilt = skipped = 0
 
-        with csv_path.open(encoding="utf-8-sig", newline="") as file:
+        with csv_path.open(encoding="utf-8-sig") as file:
 
-            raw_reader = csv.reader(file)
+            for raw in file:
 
-            for raw_row in raw_reader:
+                raw = raw.strip()
 
-                if not raw_row:
+                if not raw:
                     skipped += 1
                     continue
 
-                # Handle broken Excel CSV (single column)
-                if len(raw_row) == 1:
-                    raw_row = raw_row[0].split(",")
+                # Split safely (handles broken Excel)
+                parts = [p.strip() for p in raw.split(",") if p.strip() != ""]
 
-                row = [v.strip() for v in raw_row]
-
-                if len(row) < 6:
+                # Must have at least 6 values
+                if len(parts) < 6:
                     skipped += 1
                     continue
 
-                # Safe unpack
-                first_name = row[0]
-                middle_name = row[1] if len(row) > 1 else ""
-                last_name = row[2] if len(row) > 2 else ""
-                matric = row[3] if len(row) > 3 else ""
-                department = row[4] if len(row) > 4 else ""
-                level = row[5] if len(row) > 5 else ""
-                phone = row[6] if len(row) > 6 else ""
+                first_name = parts[0]
+                middle_name = parts[1]
+                last_name = parts[2]
+                matric = parts[3]
+                department = parts[4]
+                level = parts[5]
+                phone = parts[6] if len(parts) > 6 else ""
 
-                # Skip header / invalid row
-                if not matric or matric.lower() in ("matric_no", "matric", "matric_number"):
+                # Skip header row
+                if matric.lower() in ("matric_no", "matric", "matric_number"):
                     skipped += 1
                     continue
 
                 with transaction.atomic():
 
-                    # ---------------- USER ----------------
                     user, user_created = User.objects.get_or_create(
                         username=matric,
                         defaults={
@@ -91,9 +81,8 @@ class Command(BaseCommand):
                         user.last_name = last_name
                         user.save(update_fields=["first_name", "last_name"])
 
-                    # ---------------- STUDENT ----------------
                     student, created_flag = Student.objects.update_or_create(
-                        matric_number=matric,   # ? FIXED FIELD NAME
+                        matric_number=matric,
                         defaults={
                             "user": user,
                             "first_name": first_name,
@@ -110,7 +99,6 @@ class Command(BaseCommand):
                 else:
                     updated += 1
 
-                # ---------------- FORCE ID REBUILD ----------------
                 if FORCE_REBUILD:
                     try:
                         app = IDApplication.objects.filter(student=student).first()
