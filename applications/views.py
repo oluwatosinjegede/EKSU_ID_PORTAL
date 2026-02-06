@@ -18,23 +18,23 @@ MAX_FILE_MB = 5
 @login_required
 def apply_for_id(request):
     student = get_object_or_404(Student, user=request.user)
-
-    existing_app = IDApplication.objects.filter(student=student).first()
+    application = IDApplication.objects.filter(student=student).first()
 
     if request.method == "POST":
+
         passport = request.FILES.get("passport")
 
-        # ---- DEBUG (remove after confirmed working) ----
-        print("FILES RECEIVED:", request.FILES)
-
+        # ---- VALIDATION ----
         errors = []
 
-        # -------- Validation --------
         if not passport:
             errors.append("Passport photograph is required.")
         else:
+            if passport.size == 0:
+                errors.append("Uploaded file is empty.")
+
             if passport.content_type not in ALLOWED_IMAGE_TYPES:
-                errors.append("Passport must be JPG or PNG.")
+                errors.append("Only JPG or PNG images are allowed.")
 
             if passport.size > MAX_FILE_MB * 1024 * 1024:
                 errors.append("Passport file too large (max 5MB).")
@@ -45,26 +45,24 @@ def apply_for_id(request):
                 "apply.html",
                 {
                     "errors": errors,
-                    "application": existing_app,
+                    "application": application,
                 },
             )
 
-        # -------- Atomic save --------
+        # ---- SAVE (Cloudinary safe) ----
         try:
             with transaction.atomic():
 
-                if existing_app:
-                    # Optional: prevent change after approval
-                    if existing_app.status == IDApplication.STATUS_APPROVED:
+                if application:
+                    # Prevent change after approval
+                    if application.status == IDApplication.STATUS_APPROVED:
                         messages.error(request, "Application already approved.")
                         return redirect("dashboard")
 
-                    existing_app.passport = passport
-                    existing_app.status = IDApplication.STATUS_PENDING
-                    existing_app.reviewed_by = ""
-                    existing_app.save(
-                        update_fields=["passport", "status", "reviewed_by"]
-                    )
+                    application.passport = passport
+                    application.status = IDApplication.STATUS_PENDING
+                    application.reviewed_by = ""
+                    application.save()
 
                 else:
                     IDApplication.objects.create(
@@ -74,17 +72,13 @@ def apply_for_id(request):
 
         except Exception as e:
             print("UPLOAD ERROR:", e)
-            messages.error(request, "Passport upload failed. Try again.")
+            messages.error(request, "Passport upload failed. Please try again.")
             return redirect("dashboard")
 
         messages.success(request, "Passport uploaded successfully.")
         return redirect("dashboard")
 
-    return render(
-        request,
-        "apply.html",
-        {"application": existing_app},
-    )
+    return render(request, "apply.html", {"application": application})
 
 
 # ======================================================
@@ -104,13 +98,13 @@ def approve_id(request, app_id):
             application.reviewed_by = request.user.username
             application.save(update_fields=["status", "reviewed_by"])
 
-            # Generate ID card safely
+            # Generate ID card (must be idempotent)
             generate_id_card(application)
 
     except Exception as e:
         print("ID GENERATION ERROR:", e)
-        messages.error(request, "ID generation failed.")
+        messages.error(request, "ID generation failed. Check logs.")
         return redirect("admin_dashboard")
 
-    messages.success(request, "Application approved and ID generated.")
+    messages.success(request, "Application approved and ID card generated.")
     return redirect("admin_dashboard")

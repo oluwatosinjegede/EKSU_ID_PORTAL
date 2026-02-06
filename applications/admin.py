@@ -3,10 +3,12 @@ from django.db import transaction
 
 from .models import IDApplication
 from accounts.admin_mixins import RoleRestrictedAdminMixin
-from idcards.models import IDCard
 from idcards.services import generate_id_card
 
 
+# ======================================================
+# BULK APPROVAL ACTION
+# ======================================================
 @admin.action(description="Approve application and generate ID card")
 def approve_application(modeladmin, request, queryset):
     user_role = getattr(request.user, "role", None)
@@ -20,16 +22,19 @@ def approve_application(modeladmin, request, queryset):
         return
 
     approved = 0
+    skipped = 0
     failed = 0
 
-    for application in queryset:
+    for application in queryset.select_related("student"):
 
         # Skip already approved
-        if application.status == "APPROVED":
+        if application.status == IDApplication.STATUS_APPROVED:
+            skipped += 1
             continue
 
         # Passport must exist
         if not application.passport:
+            skipped += 1
             modeladmin.message_user(
                 request,
                 f"Skipped {application.student}: passport photo missing.",
@@ -41,15 +46,12 @@ def approve_application(modeladmin, request, queryset):
             with transaction.atomic():
 
                 # Mark approved
-                application.status = "APPROVED"
+                application.status = IDApplication.STATUS_APPROVED
                 application.reviewed_by = request.user.get_username()
                 application.save(update_fields=["status", "reviewed_by"])
 
-                # Ensure IDCard exists
-                idcard, _ = IDCard.objects.get_or_create(student=application.student)
-
-                # Generate ID card (Cloudinary-safe)
-                generate_id_card(idcard)
+                # Generate ID card (idempotent)
+                generate_id_card(application)
 
                 approved += 1
 
@@ -63,20 +65,26 @@ def approve_application(modeladmin, request, queryset):
 
     modeladmin.message_user(
         request,
-        f"{approved} approved, {failed} failed. ID cards generated automatically.",
+        f"{approved} approved, {skipped} skipped, {failed} failed.",
         level=messages.SUCCESS,
     )
 
 
+# ======================================================
+# ADMIN CONFIG
+# ======================================================
 @admin.register(IDApplication)
 class IDApplicationAdmin(RoleRestrictedAdminMixin, admin.ModelAdmin):
     allowed_roles = ["ADMIN", "REVIEWER", "APPROVER"]
 
     list_display = ("student", "status", "created_at")
     list_filter = ("status",)
+    search_fields = ("student__matric_number",)
+    ordering = ("-created_at",)
+
     readonly_fields = ("created_at",)
 
-    # Only passport required — no signature
-    fields = ("student", "passport", "status", "created_at")
+    # Passport only — signature removed
+    fields = ("student", "passport", "status", "reviewed_by", "created_at")
 
     actions = [approve_application]
