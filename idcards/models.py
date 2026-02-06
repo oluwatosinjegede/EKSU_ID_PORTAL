@@ -30,17 +30,14 @@ class IDCard(models.Model):
 
     # Uploaded passport photo
     passport = CloudinaryField(
-        upload_to=passport_upload_path,
+        "image",
+        folder="passports",   # optional (Cloudinary folder)
         blank=True,
         null=True,
     )
 
     # Generated ID card image
-    image = CloudinaryField(
-        upload_to=idcard_upload_path,
-        blank=True,
-        null=True,
-    )
+    image = CloudinaryField("image", folder="idcards", blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
