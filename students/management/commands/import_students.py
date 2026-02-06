@@ -72,11 +72,14 @@ class Command(BaseCommand):
             else:
                 rows = reader
 
+            # =========================
+            # PROCESS ROWS
+            # =========================
             for row in rows:
 
                 matric = (row.get("matric_no") or "").strip()
 
-                # Skip header row wrongly parsed
+                # Skip header accidentally read as row
                 if matric.lower() == "matric_no":
                     continue
 
@@ -94,7 +97,7 @@ class Command(BaseCommand):
                 with transaction.atomic():
 
                     # =========================
-                    # Create / Update User
+                    # CREATE / UPDATE USER
                     # =========================
                     user, user_created = User.objects.get_or_create(
                         username=matric,
@@ -104,20 +107,19 @@ class Command(BaseCommand):
                         },
                     )
 
-                    # Force update names (fix bad imports)
+                    # Force overwrite names (fix earlier bad imports)
                     if not user_created:
                         user.first_name = first_name
                         user.last_name = last_name
                         user.save(update_fields=["first_name", "last_name"])
-
-                    if user_created:
+                    else:
                         user.set_password("ChangeMe123!")
                         user.save()
 
                     # =========================
-                    # Create / Update Student
+                    # CREATE / UPDATE STUDENT
                     # =========================
-                    student, student_created = Student.objects.update_or_create(
+                    student, created_flag = Student.objects.update_or_create(
                         matric_no=matric,
                         defaults={
                             "user": user,
@@ -130,7 +132,10 @@ class Command(BaseCommand):
                         },
                     )
 
-                if student_created:
+                # =========================
+                # COUNTERS
+                # =========================
+                if created_flag:
                     created += 1
                 else:
                     updated += 1

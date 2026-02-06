@@ -12,7 +12,7 @@ from applications.models import IDApplication
 def generate_id_card(application: IDApplication) -> IDCard:
     """
     Create or reuse IDCard and generate image locally.
-    Handles Cloudinary -> local conversion safely.
+    Cloudinary -> local safe conversion included.
     """
 
     if not application or not application.student:
@@ -25,7 +25,7 @@ def generate_id_card(application: IDApplication) -> IDCard:
         # -------------------------------------------------
         # Create or fetch IDCard
         # -------------------------------------------------
-        id_card, created = IDCard.objects.get_or_create(student=student)
+        id_card, _ = IDCard.objects.get_or_create(student=student)
 
         # -------------------------------------------------
         # Copy passport from Application -> IDCard safely
@@ -36,9 +36,9 @@ def generate_id_card(application: IDApplication) -> IDCard:
             src = application.passport
 
             try:
-                # ---------- Cloudinary file ----------
-                if hasattr(src, "url"):
-                    response = requests.get(src.url, timeout=20)
+                # ---------- Remote storage (Cloudinary / S3 / URL) ----------
+                if hasattr(src, "url") and src.url:
+                    response = requests.get(src.url, timeout=15, stream=True)
                     if response.status_code == 200:
                         filename = f"{student.matric_no}_passport.jpg"
                         id_card.passport.save(
@@ -57,14 +57,15 @@ def generate_id_card(application: IDApplication) -> IDCard:
                             save=False,
                         )
 
-                id_card.save(update_fields=["passport"])
+                if id_card.passport:
+                    id_card.save(update_fields=["passport"])
 
             except Exception:
                 # Never crash generation due to passport issue
                 pass
 
         # -------------------------------------------------
-        # If image exists in DB -> ensure file exists
+        # If image exists in DB ? ensure physical file exists
         # (Railway ephemeral disk protection)
         # -------------------------------------------------
         if id_card.image and id_card.image.name:
@@ -83,7 +84,7 @@ def generate_id_card(application: IDApplication) -> IDCard:
         return id_card
 
 
-def ensure_id_card_exists(id_card):
+def ensure_id_card_exists(id_card: IDCard):
     """
     Rebuild image if DB has path but file missing (Railway disk reset fix)
     """
@@ -93,7 +94,9 @@ def ensure_id_card_exists(id_card):
 
     file_path = os.path.join(settings.MEDIA_ROOT, id_card.image.name)
 
-    # If file missing ? regenerate automatically
+    # If missing ? regenerate safely (no recursion)
     if not os.path.exists(file_path):
-        from idcards.generator import generate_id_card
-        generate_id_card(id_card)
+        try:
+            build_id_card(id_card)
+        except Exception:
+            pass
