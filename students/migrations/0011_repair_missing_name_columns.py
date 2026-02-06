@@ -32,7 +32,7 @@ def add_missing_columns(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('students', '0010_student_first_name_student_last_name_and_more'),
+        ('students', '0010_student_created_at_alter_student_department_and_more'),
     ]
 
     operations = [
