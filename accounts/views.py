@@ -57,6 +57,7 @@ def logout_view(request):
 # =========================
 @login_required
 def student_dashboard(request):
+    return render(request, "accounts/student_dashboard.html")
     student = get_object_or_404(Student, user=request.user)
 
     application = IDApplication.objects.filter(student=student).first()

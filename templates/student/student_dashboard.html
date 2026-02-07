@@ -17,9 +17,9 @@
             </p>
 
             {% if not application %}
-                <a href="{% url 'apply_id' %}"
+                <a href="{% url 'accounts:apply_id' %}"
                    class="text-blue-700 font-semibold hover:underline">
-                    Apply ?
+                    Apply
                 </a>
             {% else %}
                 <span class="text-gray-500 text-sm">
@@ -36,7 +36,7 @@
                 <span class="inline-block px-3 py-1 rounded-full text-sm font-semibold
                     {% if application.status == 'APPROVED' %}
                         bg-green-100 text-green-700
-                    {% elif application.status == 'PENDING' %}
+                    {% elif application.status == 'PENDING' or application.status == 'UNDER_REVIEW' %}
                         bg-yellow-100 text-yellow-700
                     {% else %}
                         bg-gray-100 text-gray-700
@@ -53,14 +53,14 @@
         <div class="bg-white p-6 rounded-xl shadow">
             <h3 class="font-semibold mb-2">My ID Card</h3>
 
-            {% if id_card and id_card.image %}
+            {% if id_card and id_card.image and id_card.image.url %}
                 <img
                     src="{{ id_card.image.url }}"
                     alt="Student ID Card"
                     class="border rounded mb-4 w-full max-w-xs mx-auto"
                 >
 
-                <a href="{% url 'download_id' id_card.uid %}"
+                <a href="{% url 'idcards:download_id' id_card.uid %}"
                    class="inline-block bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800 transition">
                     Download ID Card
                 </a>
