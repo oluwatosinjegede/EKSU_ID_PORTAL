@@ -155,8 +155,9 @@ class Command(BaseCommand):
 
                 except IntegrityError:
                     failed += 1
-                except Exception:
+                except Exception as e:
                     failed += 1
+                    self.stderr.write(f"FAILED {matric}: {repr(e)}")
 
         self.stdout.write(
             self.style.SUCCESS(
