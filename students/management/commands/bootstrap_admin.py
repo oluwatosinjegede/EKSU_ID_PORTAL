@@ -10,9 +10,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         User = get_user_model()
 
-        # -------------------------------------------------
-        # READ ENV VARS
-        # -------------------------------------------------
         username = os.getenv("DJANGO_ADMIN_USER")
         email = os.getenv("DJANGO_ADMIN_EMAIL")
         password = os.getenv("DJANGO_ADMIN_PASSWORD")
@@ -25,7 +22,7 @@ class Command(BaseCommand):
             with transaction.atomic():
 
                 # -------------------------------------------------
-                # 1. IF SUPERUSER EXISTS ? ENSURE LOGIN WORKS
+                # FIND EXISTING SUPERUSER
                 # -------------------------------------------------
                 existing_superuser = User.objects.filter(is_superuser=True).first()
 
@@ -52,6 +49,12 @@ class Command(BaseCommand):
                         existing_superuser.is_active = True
                         updated = True
 
+                    # IMPORTANT: ensure admin can login even if you use this flag
+                    if hasattr(existing_superuser, "must_change_password"):
+                        if existing_superuser.must_change_password:
+                            existing_superuser.must_change_password = False
+                            updated = True
+
                     if updated:
                         existing_superuser.save()
                         self.stdout.write("Superuser repaired / updated.")
@@ -61,7 +64,7 @@ class Command(BaseCommand):
                     return
 
                 # -------------------------------------------------
-                # 2. NO SUPERUSER ? CREATE SAFELY
+                # CREATE NEW SUPERUSER
                 # -------------------------------------------------
                 user, created = User.objects.get_or_create(
                     username=username,
@@ -75,18 +78,26 @@ class Command(BaseCommand):
 
                 if created:
                     user.set_password(password)
+
+                    if hasattr(user, "must_change_password"):
+                        user.must_change_password = False
+
                     user.save()
                     self.stdout.write(self.style.SUCCESS("Superuser created."))
                     return
 
                 # -------------------------------------------------
-                # 3. USER EXISTS BUT NOT SUPERUSER ? PROMOTE
+                # USER EXISTS ? PROMOTE
                 # -------------------------------------------------
                 user.email = email
                 user.is_superuser = True
                 user.is_staff = True
                 user.is_active = True
                 user.set_password(password)
+
+                if hasattr(user, "must_change_password"):
+                    user.must_change_password = False
+
                 user.save()
 
                 self.stdout.write(self.style.SUCCESS("Existing user promoted to superuser."))
