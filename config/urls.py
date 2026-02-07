@@ -10,16 +10,34 @@ from idcards.views import verify_id
 urlpatterns = [
     path("admin/", admin.site.urls),
 
-    # Accounts (home/login/etc)
-    path("", include("accounts.urls")),
+    # -------------------------------------------------
+    # ACCOUNTS (Namespaced)
+    # -------------------------------------------------
+    path(
+        "",
+        include(("accounts.urls", "accounts"), namespace="accounts"),
+    ),
 
-    # ID verification
-    path("verify/<uuid:uid>/", verify_id, name="verify_id"),
+    # -------------------------------------------------
+    # ID VERIFICATION (Namespaced safe)
+    # -------------------------------------------------
+    path(
+        "verify/<uuid:uid>/",
+        verify_id,
+        name="verify_id",   # use idcards:verify_id in templates if needed
+    ),
 
-    # IDCards urls (download/verify extras)
-    path("", include("idcards.urls")),
-    
+    # -------------------------------------------------
+    # IDCARDS (Namespaced)
+    # -------------------------------------------------
+    path(
+        "",
+        include(("idcards.urls", "idcards"), namespace="idcards"),
+    ),
 
+    # -------------------------------------------------
+    # FAVICON
+    # -------------------------------------------------
     path(
         "favicon.ico",
         RedirectView.as_view(
@@ -29,4 +47,7 @@ urlpatterns = [
     ),
 ]
 
+# -------------------------------------------------
+# MEDIA FILES (Development)
+# -------------------------------------------------
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

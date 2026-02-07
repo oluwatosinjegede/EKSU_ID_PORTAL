@@ -8,7 +8,8 @@ from .views import (
     force_change_password_view,
 )
 
-app_name = "accounts"   # Enables namespacing (prevents reverse conflicts)
+app_name = "accounts"   # Enables namespace (accounts:*)
+
 
 urlpatterns = [
 
@@ -22,12 +23,11 @@ urlpatterns = [
     # =========================
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
-    path("change-password/", force_change_password_view, name="force-change-password"),
+    path("change-password/", force_change_password_view, name="force_change_password"),
 
     # =========================
     # STUDENT
     # =========================
-    path("student/dashboard/", student_dashboard, name="student-dashboard"),
+    path("student/dashboard/", student_dashboard, name="student_dashboard"),
     path("student/apply/", apply_id_view, name="apply_id"),
-    path('', home_view, name='home'),
 ]

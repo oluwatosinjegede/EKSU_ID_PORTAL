@@ -1,3 +1,6 @@
+{% load static %}
+{% load url from future %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,8 +19,13 @@
 <nav class="bg-blue-700 text-white shadow">
     <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
 
-        <!-- CLICKABLE TITLE -->
-        <a href="{% url 'home' %}" class="text-xl font-bold hover:opacity-90">
+        <!-- SAFE HOME LINK -->
+        {% url 'home' as home_url %}
+        {% if not home_url %}
+            {% url 'accounts:home' as home_url %}
+        {% endif %}
+
+        <a href="{{ home_url|default:'/' }}" class="text-xl font-bold hover:opacity-90">
             University ID Portal
         </a>
 
@@ -80,7 +88,7 @@
 </footer>
 
 
-<!-- OPTIONAL DEBUG (remove in production) -->
+<!-- OPTIONAL DEBUG -->
 {% if debug %}
 <div class="fixed bottom-0 right-0 bg-black text-white text-xs px-3 py-2 opacity-70">
     DEBUG MODE ON
