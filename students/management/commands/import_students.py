@@ -147,7 +147,7 @@ class Command(BaseCommand):
                     failed += 1
                     self.stderr.write(f"Failed {matric}: {e}")
 
-        self.stdout.write(
+              self.stdout.write(
             self.style.SUCCESS(
                 f"""
 Import complete:
@@ -158,3 +158,4 @@ Import complete:
   Failed: {failed}
 """
             )
+        )
