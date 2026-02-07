@@ -185,4 +185,4 @@ def force_change_password_view(request):
     else:
         form = ForcePasswordChangeForm(user)
 
-    return render(request, "auth/force_change_password.html", {"form": form})
+    return render(request, "accounts/force_change_password.html", {"form": form})
