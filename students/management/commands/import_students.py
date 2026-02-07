@@ -14,7 +14,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Safe student importer (FK-safe, login-safe, Railway-safe)"
+    help = "Stable student importer (FK-safe, login-safe, collision-proof, Railway-safe)"
 
     def handle(self, *args, **options):
 
@@ -29,20 +29,16 @@ class Command(BaseCommand):
             self.stderr.write("CSV file not found")
             return
 
-        created = 0
-        updated = 0
-        rebuilt = 0
-        skipped = 0
-        failed = 0
+        created = updated = rebuilt = skipped = failed = 0
 
         with csv_path.open(encoding="utf-8-sig", newline="") as f:
             reader = csv.reader(f)
 
             for row in reader:
 
-                # -----------------------------
-                # Basic validation
-                # -----------------------------
+                # -------------------------------------------------
+                # BASIC VALIDATION
+                # -------------------------------------------------
                 if not row or len(row) < 6:
                     skipped += 1
                     continue
@@ -62,9 +58,9 @@ class Command(BaseCommand):
                 try:
                     with transaction.atomic():
 
-                        # =====================================================
-                        # ENSURE USER EXISTS (LOGIN SAFE, NO MISMATCH)
-                        # =====================================================
+                        # =================================================
+                        # ENSURE USER EXISTS (LOGIN SAFE)
+                        # =================================================
                         user, user_created = User.objects.get_or_create(
                             username=matric,
                             defaults={
@@ -89,17 +85,22 @@ class Command(BaseCommand):
                             if changed:
                                 user.save(update_fields=["first_name", "last_name"])
 
-                        # =====================================================
-                        # PREVENT OneToOne COLLISION
-                        # =====================================================
-                        existing_student = Student.objects.filter(user=user).exclude(
-                            matric_number=matric
-                        ).first()
+                        # =================================================
+                        # HARD COLLISION PROTECTION (OneToOne safe)
+                        # =================================================
+                        existing_owner = Student.objects.filter(user=user).first()
 
-                        if existing_student:
-                            # Create a fresh user to avoid collision
+                        if existing_owner and existing_owner.matric_number != matric:
+                            # Create guaranteed unique username
+                            suffix = 1
+                            new_username = matric
+
+                            while User.objects.filter(username=new_username).exists():
+                                suffix += 1
+                                new_username = f"{matric}_{suffix}"
+
                             user = User.objects.create(
-                                username=f"{matric}_{User.objects.count()}",
+                                username=new_username,
                                 first_name=first,
                                 last_name=last,
                                 role="STUDENT",
@@ -108,9 +109,9 @@ class Command(BaseCommand):
                             user.set_password("ChangeMe123!")
                             user.save()
 
-                        # =====================================================
+                        # =================================================
                         # CREATE / UPDATE STUDENT (FK SAFE)
-                        # =====================================================
+                        # =================================================
                         student, created_flag = Student.objects.update_or_create(
                             matric_number=matric,
                             defaults={
@@ -129,9 +130,9 @@ class Command(BaseCommand):
                     else:
                         updated += 1
 
-                    # =====================================================
+                    # =================================================
                     # OPTIONAL ID REBUILD
-                    # =====================================================
+                    # =================================================
                     if FORCE_REBUILD:
                         try:
                             app = IDApplication.objects.filter(student=student).first()
