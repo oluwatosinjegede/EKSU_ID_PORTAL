@@ -18,6 +18,7 @@ urlpatterns = [
 
     # IDCards urls (download/verify extras)
     path("", include("idcards.urls")),
+    
 
     path(
         "favicon.ico",

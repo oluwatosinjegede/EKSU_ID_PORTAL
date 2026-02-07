@@ -29,4 +29,5 @@ urlpatterns = [
     # =========================
     path("student/dashboard/", student_dashboard, name="student-dashboard"),
     path("student/apply/", apply_id_view, name="apply_id"),
+    path('', home_view, name='home'),
 ]
