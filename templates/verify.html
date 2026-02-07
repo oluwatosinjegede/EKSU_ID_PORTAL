@@ -1,20 +1,86 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>ID Verification</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Minimal styling (safe, no dependencies) -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f3f4f6;
+            margin: 0;
+            padding: 20px;
+        }
+        .card {
+            max-width: 520px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        }
+        .title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #16a34a;
+            margin-bottom: 15px;
+        }
+        .row {
+            margin-bottom: 10px;
+        }
+        .label {
+            font-weight: bold;
+            color: #374151;
+        }
+        .value {
+            color: #111827;
+        }
+    </style>
 </head>
+
 <body>
-    <h2>✅ Student ID Verified</h2>
 
-    <p><strong>Name:</strong>
-        {{ student.user.first_name }}
-        {% if student.middle_name %} {{ student.middle_name }} {% endif %}
-        {{ student.user.last_name }}
-    </p>
+<div class="card">
 
-    <p><strong>Matric Number:</strong> {{ student.matric_number }}</p>
-    <p><strong>Department:</strong> {{ student.department }}</p>
-    <p><strong>Level:</strong> {{ student.level }}</p>
-    <p><strong>Issued:</strong> {{ issued_at }}</p>
+    <!-- SAFE CHECKMARK -->
+    <div class="title">
+        &#9989; Student ID Verified
+    </div>
+
+    <div class="row">
+        <span class="label">Name:</span>
+        <span class="value">
+            {{ student.user.first_name|default:"-" }}
+            {% if student.middle_name %} {{ student.middle_name }} {% endif %}
+            {{ student.user.last_name|default:"-" }}
+        </span>
+    </div>
+
+    <div class="row">
+        <span class="label">Matric Number:</span>
+        <span class="value">{{ student.matric_number|default:"-" }}</span>
+    </div>
+
+    <div class="row">
+        <span class="label">Department:</span>
+        <span class="value">{{ student.department|default:"-" }}</span>
+    </div>
+
+    <div class="row">
+        <span class="label">Level:</span>
+        <span class="value">{{ student.level|default:"-" }}</span>
+    </div>
+
+    <div class="row">
+        <span class="label">Issued:</span>
+        <span class="value">
+            {{ issued_at|default:"Not available" }}
+        </span>
+    </div>
+
+</div>
+
 </body>
 </html>

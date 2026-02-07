@@ -13,8 +13,16 @@ from idcards.services import generate_id_card
 User = get_user_model()
 
 
+MAX_LEN = 100  # protect varchar(100) fields
+
+
+def safe(v):
+    """Trim + protect DB length"""
+    return (v or "").strip()[:MAX_LEN]
+
+
 class Command(BaseCommand):
-    help = "Robust Student CSV Import (FK-safe, idempotent, Railway-safe)"
+    help = "Robust CSV Import (FK-safe, idempotent, duplicate-safe, Railway-safe)"
 
     def handle(self, *args, **options):
 
@@ -30,37 +38,32 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR("CSV file not found"))
             return
 
-        created = 0
-        updated = 0
-        rebuilt = 0
-        skipped = 0
-        failed = 0
+        created = updated = rebuilt = skipped = failed = 0
 
-        # -------- STREAM READ (memory safe) --------
         with csv_path.open(encoding="utf-8-sig", newline="") as f:
             reader = csv.reader(f)
 
             for row in reader:
 
-                # Skip empty lines
+                # ---------- Skip empty ----------
                 if not row or all(not c.strip() for c in row):
                     skipped += 1
                     continue
 
-                # Ensure minimum columns
                 if len(row) < 6:
                     skipped += 1
                     continue
 
-                first_name = row[0].strip()
-                middle_name = row[1].strip()
-                last_name = row[2].strip()
-                matric = row[3].strip()
-                department = row[4].strip()
-                level = row[5].strip()
-                phone = row[6].strip() if len(row) > 6 else ""
+                # ---------- Clean + truncate ----------
+                first_name = safe(row[0])
+                middle_name = safe(row[1])
+                last_name = safe(row[2])
+                matric = safe(row[3])
+                department = safe(row[4])
+                level = safe(row[5])
+                phone = safe(row[6]) if len(row) > 6 else ""
 
-                # Skip header row
+                # Skip header
                 if matric.lower() in ("matric_no", "matric", "matric_number"):
                     skipped += 1
                     continue
@@ -68,9 +71,9 @@ class Command(BaseCommand):
                 try:
                     with transaction.atomic():
 
-                        # ==============================
-                        # CREATE / FIX USER (FK SAFE)
-                        # ==============================
+                        # ====================================================
+                        # USER (Guaranteed unique by username = matric)
+                        # ====================================================
                         user, user_created = User.objects.get_or_create(
                             username=matric,
                             defaults={
@@ -85,7 +88,7 @@ class Command(BaseCommand):
                             user.set_password("ChangeMe123!")
                             user.save()
                         else:
-                            # Sync names safely
+                            # Sync names if changed
                             changed = False
                             if user.first_name != first_name:
                                 user.first_name = first_name
@@ -96,13 +99,20 @@ class Command(BaseCommand):
                             if changed:
                                 user.save(update_fields=["first_name", "last_name"])
 
-                        # ==============================
-                        # CREATE / UPDATE STUDENT
-                        # ==============================
+                        # ====================================================
+                        # STUDENT (Prevent duplicate user link)
+                        # ====================================================
+                        existing_student = Student.objects.filter(user=user).first()
+
+                        if existing_student and existing_student.matric_number != matric:
+                            # Another student already linked to this user ? skip
+                            skipped += 1
+                            continue
+
                         student, created_flag = Student.objects.update_or_create(
                             matric_number=matric,
                             defaults={
-                                "user": user,  # <-- FK integrity guaranteed
+                                "user": user,
                                 "first_name": first_name,
                                 "middle_name": middle_name,
                                 "last_name": last_name,
@@ -117,9 +127,9 @@ class Command(BaseCommand):
                     else:
                         updated += 1
 
-                    # ==============================
-                    # OPTIONAL REBUILD ID
-                    # ==============================
+                    # ====================================================
+                    # OPTIONAL ID REBUILD (Safe)
+                    # ====================================================
                     if FORCE_REBUILD:
                         try:
                             app = IDApplication.objects.filter(student=student).first()

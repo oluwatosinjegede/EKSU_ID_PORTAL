@@ -8,17 +8,26 @@ from idcards.views import verify_id
 
 
 urlpatterns = [
-    # Admin
+    # -------------------------------------------------
+    # ADMIN
+    # -------------------------------------------------
     path("admin/", admin.site.urls),
 
-    # Verify ID (QR target)
+    # -------------------------------------------------
+    # VERIFY ID (QR target — must be TOP LEVEL)
+    # -------------------------------------------------
     path("verify/<uuid:uid>/", verify_id, name="verify_id"),
 
-    # App routes
-    path("", include("accounts.urls")),
-    path("", include("idcards.urls")),
+    # -------------------------------------------------
+    # CORE APP ROUTES
+    # -------------------------------------------------
+    path("", include("accounts.urls")),      # login, logout, dashboard
+    path("", include("applications.urls")),  # apply, approve
+    path("", include("idcards.urls")),       # download, API, etc.
 
-    # Optional: favicon (prevents /favicon.ico error)
+    # -------------------------------------------------
+    # FAVICON (prevents /favicon.ico 404 spam)
+    # -------------------------------------------------
     path(
         "favicon.ico",
         RedirectView.as_view(
@@ -30,8 +39,7 @@ urlpatterns = [
 
 
 # -------------------------------------------------
-# MEDIA SERVING (Railway-safe)
+# MEDIA SERVING (Railway — no nginx)
 # -------------------------------------------------
-# Railway does not run nginx, so Django must serve media.
-# This works in both DEBUG and production.
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.MEDIA_URL and settings.MEDIA_ROOT:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

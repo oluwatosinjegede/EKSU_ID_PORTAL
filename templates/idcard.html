@@ -1,29 +1,97 @@
-<html>
-<body style="border:2px solid black; padding:20px; font-family: Arial, sans-serif;">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Student ID Card</title>
 
-<p><strong>Name:</strong>
-    {{ student.user.first_name }} {{ student.user.last_name }}
-</p>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            border: 2px solid #000;
+            padding: 15px;
+            width: 320px;
+        }
 
-<p><strong>Matric No:</strong> {{ student.matric_number }}</p>
-<p><strong>Department:</strong> {{ student.department }}</p>
+        .row {
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
 
-<!-- PASSPORT PHOTO -->
-{% if passport %}
-    <img src="{{ passport }}" width="120" alt="Passport Photo"><br>
-{% else %}
-    <p style="color:red;">Passport photo not available</p>
-{% endif %}
+        .label {
+            font-weight: bold;
+        }
 
-<p><strong>Verification QR:</strong></p>
+        .center {
+            text-align: center;
+        }
 
-{% if qr_code %}
-    <img src="{{ qr_code }}" width="120" alt="QR Code">
-{% else %}
-    <p style="color:red;">QR code unavailable</p>
-{% endif %}
+        .photo {
+            margin-top: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #ccc;
+        }
 
-<p style="font-size:10px;">ID UID: {{ uid }}</p>
+        .error {
+            color: red;
+            font-size: 12px;
+        }
+
+        .uid {
+            font-size: 9px;
+            margin-top: 8px;
+            color: #444;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- NAME -->
+    <div class="row">
+        <span class="label">Name:</span>
+        {{ student.user.first_name|default:"-" }}
+        {{ student.user.last_name|default:"-" }}
+    </div>
+
+    <!-- MATRIC -->
+    <div class="row">
+        <span class="label">Matric No:</span>
+        {{ student.matric_number|default:"-" }}
+    </div>
+
+    <!-- DEPARTMENT -->
+    <div class="row">
+        <span class="label">Department:</span>
+        {{ student.department|default:"-" }}
+    </div>
+
+    <!-- PASSPORT PHOTO -->
+    <div class="center">
+        {% if passport %}
+            <img src="{{ passport }}" width="120" height="140"
+                 class="photo"
+                 alt="Passport Photo">
+        {% else %}
+            <div class="error">Passport photo not available</div>
+        {% endif %}
+    </div>
+
+    <!-- QR CODE -->
+    <div class="center">
+        <div class="row label">Verification QR</div>
+
+        {% if qr_code %}
+            <img src="{{ qr_code }}" width="110" height="110"
+                 alt="QR Code">
+        {% else %}
+            <div class="error">QR code unavailable</div>
+        {% endif %}
+    </div>
+
+    <!-- UID -->
+    <div class="uid center">
+        ID UID: {{ uid|default:"N/A" }}
+    </div>
 
 </body>
 </html>
