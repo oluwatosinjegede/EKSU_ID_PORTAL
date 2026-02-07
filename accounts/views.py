@@ -12,8 +12,6 @@ from idcards.services import ensure_id_card_exists
 
 from .forms import ForcePasswordChangeForm
 
-
-
 # =========================
 # HOME
 # =========================
@@ -25,38 +23,27 @@ def home_view(request):
 # LOGIN
 # =========================
 def login_view(request):
+    if request.user.is_authenticated:
+        return redirect("accounts:student_dashboard")
+
     if request.method == "POST":
-        username = request.POST.get("username", "").strip()
-        password = request.POST.get("password", "").strip()
+        username = request.POST.get("username")
+        password = request.POST.get("password")
 
         user = authenticate(request, username=username, password=password)
 
-        if user is None:
-            return render(
-                request,
-                "auth/login.html",
-                {"error": "Invalid login credentials"},
-            )
+        if user is not None and user.is_active:
+            login(request, user)
 
-        login(request, user)
+            # Force password change if required
+            if getattr(user, "must_change_password", False):
+                return redirect("accounts:force_change_password")
 
-        # FORCE PASSWORD CHANGE
-        if getattr(user, "must_change_password", False):
-            return redirect("force-change-password")
+            return redirect("accounts:student_dashboard")
 
-        # ADMIN / STAFF
-        if user.is_superuser or user.role == "ADMIN":
-            return redirect("/admin/")
+        messages.error(request, "Invalid login credentials")
 
-        # STUDENT
-        if hasattr(user, "student"):
-            return redirect("student-dashboard")
-
-        # FALLBACK
-        return redirect("home")
-
-    return render(request, "auth/login.html")
-
+    return render(request, "accounts/login.html")
 # =========================
 # LOGOUT
 # =========================
