@@ -132,7 +132,7 @@ class Command(BaseCommand):
                         app = IDApplication.objects.filter(student=student).first()
                         if app and app.passport:
                             generate_id_card(app)
-                            rebuilt += 1? 
+                            rebuilt += 1 
 
                 except IntegrityError as e:
                     failed += 1
