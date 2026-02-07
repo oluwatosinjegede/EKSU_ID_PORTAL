@@ -49,7 +49,7 @@ def login_view(request):
 # =========================
 def logout_view(request):
     logout(request)
-    return redirect("home")
+    return redirect("account:home")
 
 
 # =========================
@@ -82,7 +82,7 @@ def student_dashboard(request):
 
     return render(
         request,
-        "student/dashboard.html",
+        "accounts/student_dashboard.html",
         {
             "student": student,
             "application": application,
@@ -113,7 +113,7 @@ def apply_id_view(request):
         # -------- HARD CHECK --------
         if not passport:
             messages.error(request, "No file received.")
-            return redirect("student_apply")
+            return redirect("students:apply")
 
         # -------- IMAGE VALIDATION --------
         try:
@@ -122,7 +122,7 @@ def apply_id_view(request):
             passport.seek(0)
         except Exception:
             messages.error(request, "Invalid or corrupted image.")
-            return redirect("student_apply")
+            return redirect("students:apply")
 
         try:
             with transaction.atomic():
@@ -132,7 +132,7 @@ def apply_id_view(request):
 
                 if application.status == IDApplication.STATUS_APPROVED:
                     messages.error(request, "Application already approved.")
-                    return redirect("student-dashboard")
+                    return redirect("accounts:student_dashboard")
 
                 # Remove old Cloudinary file
                 if application.passport:
@@ -153,12 +153,12 @@ def apply_id_view(request):
             print("UPLOAD ERROR:", str(e))
             traceback.print_exc()
             messages.error(request, "Upload failed. Check server logs.")
-            return redirect("student_apply")
+            return redirect("student:apply")
 
         messages.success(request, "Passport uploaded successfully.")
-        return redirect("student-dashboard")
+        return redirect("accounts:student_dashboard")
 
-    return render(request, "student/apply_id.html", {"application": application})
+    return render(request, "student/apply.html", {"application": application})
 
 
 # =========================
@@ -169,7 +169,7 @@ def force_change_password_view(request):
     user = request.user
 
     if not getattr(user, "must_change_password", False):
-        return redirect("student-dashboard")
+        return redirect("accounts:student_dashboard")
 
     if request.method == "POST":
         form = ForcePasswordChangeForm(user, request.POST)
@@ -181,7 +181,7 @@ def force_change_password_view(request):
 
             update_session_auth_hash(request, user)
 
-            return redirect("student-dashboard")
+            return redirect("accounts:student_dashboard")
     else:
         form = ForcePasswordChangeForm(user)
 
