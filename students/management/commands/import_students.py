@@ -40,6 +40,9 @@ class Command(BaseCommand):
 
             for row in reader:
 
+                # -----------------------------
+                # Basic validation
+                # -----------------------------
                 if not row or len(row) < 6:
                     skipped += 1
                     continue
@@ -59,9 +62,9 @@ class Command(BaseCommand):
                 try:
                     with transaction.atomic():
 
-                        # -----------------------------
-                        # Ensure USER exists (login-safe)
-                        # -----------------------------
+                        # =====================================================
+                        # ENSURE USER EXISTS (LOGIN SAFE, NO MISMATCH)
+                        # =====================================================
                         user, user_created = User.objects.get_or_create(
                             username=matric,
                             defaults={
@@ -86,16 +89,17 @@ class Command(BaseCommand):
                             if changed:
                                 user.save(update_fields=["first_name", "last_name"])
 
-                        # -----------------------------
-                        # Fix OneToOne collision
-                        # -----------------------------
-                        conflict = Student.objects.filter(user=user).exclude(
+                        # =====================================================
+                        # PREVENT OneToOne COLLISION
+                        # =====================================================
+                        existing_student = Student.objects.filter(user=user).exclude(
                             matric_number=matric
                         ).first()
 
-                        if conflict:
+                        if existing_student:
+                            # Create a fresh user to avoid collision
                             user = User.objects.create(
-                                username=f"{matric}_{Student.objects.count()}",
+                                username=f"{matric}_{User.objects.count()}",
                                 first_name=first,
                                 last_name=last,
                                 role="STUDENT",
@@ -104,9 +108,9 @@ class Command(BaseCommand):
                             user.set_password("ChangeMe123!")
                             user.save()
 
-                        # -----------------------------
-                        # Create / Update STUDENT
-                        # -----------------------------
+                        # =====================================================
+                        # CREATE / UPDATE STUDENT (FK SAFE)
+                        # =====================================================
                         student, created_flag = Student.objects.update_or_create(
                             matric_number=matric,
                             defaults={
@@ -125,14 +129,17 @@ class Command(BaseCommand):
                     else:
                         updated += 1
 
-                    # -----------------------------
-                    # Optional ID rebuild
-                    # -----------------------------
+                    # =====================================================
+                    # OPTIONAL ID REBUILD
+                    # =====================================================
                     if FORCE_REBUILD:
-                        app = IDApplication.objects.filter(student=student).first()
-                        if app and app.passport:
-                            generate_id_card(app)
-                            rebuilt += 1 
+                        try:
+                            app = IDApplication.objects.filter(student=student).first()
+                            if app and app.passport:
+                                generate_id_card(app)
+                                rebuilt += 1
+                        except Exception as e:
+                            self.stderr.write(f"Rebuild failed for {matric}: {e}")
 
                 except IntegrityError as e:
                     failed += 1
@@ -143,7 +150,8 @@ class Command(BaseCommand):
                     self.stderr.write(f"Failed {matric}: {e}")
 
         self.stdout.write(
-            f"""
+            self.style.SUCCESS(
+                f"""
 Import complete:
   Created: {created}
   Updated: {updated}
@@ -151,4 +159,5 @@ Import complete:
   Skipped: {skipped}
   Failed: {failed}
 """
+            )
         )
