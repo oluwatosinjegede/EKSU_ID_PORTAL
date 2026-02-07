@@ -1,5 +1,4 @@
 {% load static %}
-{% load url from future %}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -19,13 +18,8 @@
 <nav class="bg-blue-700 text-white shadow">
     <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
 
-        <!-- SAFE HOME LINK -->
-        {% url 'home' as home_url %}
-        {% if not home_url %}
-            {% url 'accounts:home' as home_url %}
-        {% endif %}
-
-        <a href="{{ home_url|default:'/' }}" class="text-xl font-bold hover:opacity-90">
+        <!-- HOME LINK (Namespaced Safe) -->
+        <a href="{% url 'accounts:home' %}" class="text-xl font-bold hover:opacity-90">
             University ID Portal
         </a>
 
@@ -36,14 +30,14 @@
                     {{ user.username }}
                 </span>
 
-                <a href="{% url 'logout' %}"
+                <a href="{% url 'accounts:logout' %}"
                    class="bg-red-500 px-3 py-1 rounded hover:bg-red-600 transition">
                     Logout
                 </a>
 
             </div>
         {% else %}
-            <a href="{% url 'login' %}"
+            <a href="{% url 'accounts:login' %}"
                class="bg-white text-blue-700 px-4 py-2 rounded font-semibold hover:bg-gray-100 transition">
                 Login
             </a>
