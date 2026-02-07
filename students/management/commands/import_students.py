@@ -14,7 +14,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Stable student importer (FK-safe, login-safe, idempotent, OneToOne-safe, Railway-safe)"
+    help = "Self-healing student importer (auto-repair, idempotent, FK-safe, OneToOne-safe)"
 
     def handle(self, *args, **options):
 
@@ -23,22 +23,20 @@ class Command(BaseCommand):
             return
 
         FORCE_REBUILD = os.getenv("REBUILD_STUDENTS") == "true"
+        DRY_RUN = os.getenv("DRY_RUN_IMPORT") == "true"
 
         csv_path = Path("students/data/students.csv")
         if not csv_path.exists():
             self.stderr.write("CSV file not found")
             return
 
-        created = updated = rebuilt = skipped = failed = 0
+        created = updated = healed_users = healed_students = rebuilt = skipped = failed = 0
 
         with csv_path.open(encoding="utf-8-sig", newline="") as f:
             reader = csv.reader(f)
 
             for row in reader:
 
-                # -------------------------------------------------
-                # BASIC VALIDATION
-                # -------------------------------------------------
                 if not row or len(row) < 6:
                     skipped += 1
                     continue
@@ -58,66 +56,67 @@ class Command(BaseCommand):
                 try:
                     with transaction.atomic():
 
-                        # =================================================
-                        # 1. GET OR CREATE USER (LOGIN SAFE)
-                        # =================================================
-                        user, user_created = User.objects.get_or_create(
-                            username=matric,
-                            defaults={
-                                "first_name": first,
-                                "last_name": last,
-                                "role": "STUDENT",
-                                "must_change_password": True,
-                            },
-                        )
-
-                        if user_created:
-                            user.set_password("ChangeMe123!")
-                            user.save()
-                        else:
-                            changed = False
-                            if user.first_name != first:
-                                user.first_name = first
-                                changed = True
-                            if user.last_name != last:
-                                user.last_name = last
-                                changed = True
-                            if changed:
-                                user.save(update_fields=["first_name", "last_name"])
-
-                        # =================================================
-                        # 2. ENSURE STUDENT BY MATRIC (PRIMARY KEY LOGIC)
-                        # =================================================
+                        # -------------------------------------------------
+                        # 1. FIND / HEAL STUDENT BY MATRIC
+                        # -------------------------------------------------
                         student = Student.objects.filter(matric_number=matric).first()
 
                         if student:
-                            # If Student exists but linked to different user, keep existing link
-                            if student.user_id != user.id:
+                            try:
                                 user = student.user
+                            except User.DoesNotExist:
+                                # Heal orphan Student (missing User)
+                                user = User.objects.create(
+                                    username=matric,
+                                    first_name=first,
+                                    last_name=last,
+                                    role="STUDENT",
+                                    must_change_password=True,
+                                )
+                                user.set_password("ChangeMe123!")
+                                user.save()
 
-                            # Update fields safely
-                            Student.objects.filter(id=student.id).update(
-                                first_name=first,
-                                middle_name=middle,
-                                last_name=last,
-                                department=dept,
-                                level=level,
-                                phone=phone,
-                            )
-                            created_flag = False
+                                student.user = user
+                                student.save(update_fields=["user"])
+                                healed_students += 1
 
                         else:
-                            # =================================================
-                            # 3. ENSURE USER NOT ALREADY OWNED BY ANOTHER STUDENT
-                            # =================================================
-                            existing_owner = Student.objects.filter(user=user).first()
+                            user = None
 
-                            if existing_owner:
-                                # Reuse existing student ? prevent OneToOne violation
-                                student = existing_owner
-                                created_flag = False
+                        # -------------------------------------------------
+                        # 2. ENSURE USER EXISTS (ORPHAN USER HEAL)
+                        # -------------------------------------------------
+                        if not user:
+                            user = User.objects.filter(username=matric).first()
+
+                            if user:
+                                # User exists but may not have Student
+                                healed_users += 1
                             else:
-                                # Safe create
+                                user = User.objects.create(
+                                    username=matric,
+                                    first_name=first,
+                                    last_name=last,
+                                    role="STUDENT",
+                                    must_change_password=True,
+                                )
+                                user.set_password("ChangeMe123!")
+                                user.save()
+
+                        # -------------------------------------------------
+                        # 3. ENSURE ONE-TO-ONE SAFE
+                        # -------------------------------------------------
+                        owner = Student.objects.filter(user=user).first()
+
+                        if owner and owner.matric_number != matric:
+                            # Reuse owner instead of creating duplicate
+                            student = owner
+
+                        # -------------------------------------------------
+                        # 4. CREATE / UPDATE STUDENT
+                        # -------------------------------------------------
+                        if not student:
+                            if not DRY_RUN:
                                 student = Student.objects.create(
                                     user=user,
                                     matric_number=matric,
@@ -128,42 +127,49 @@ class Command(BaseCommand):
                                     level=level,
                                     phone=phone,
                                 )
-                                created_flag = True
+                            created += 1
+                        else:
+                            if not DRY_RUN:
+                                Student.objects.filter(id=student.id).update(
+                                    first_name=first,
+                                    middle_name=middle,
+                                    last_name=last,
+                                    department=dept,
+                                    level=level,
+                                    phone=phone,
+                                )
+                            updated += 1
 
-                    if created_flag:
-                        created += 1
-                    else:
-                        updated += 1
-
-                    # =================================================
-                    # OPTIONAL ID REBUILD
-                    # =================================================
-                    if FORCE_REBUILD:
+                    # -------------------------------------------------
+                    # 5. OPTIONAL ID REBUILD
+                    # -------------------------------------------------
+                    if FORCE_REBUILD and student:
                         try:
                             app = IDApplication.objects.filter(student=student).first()
                             if app and app.passport:
-                                generate_id_card(app)
+                                if not DRY_RUN:
+                                    generate_id_card(app)
                                 rebuilt += 1
-                        except Exception as e:
-                            self.stderr.write(f"Rebuild failed for {matric}: {e}")
+                        except Exception:
+                            pass
 
-                except IntegrityError as e:
+                except IntegrityError:
                     failed += 1
-                    self.stderr.write(f"Integrity error {matric}: {e}")
-
-                except Exception as e:
+                except Exception:
                     failed += 1
-                    self.stderr.write(f"Failed {matric}: {e}")
 
         self.stdout.write(
             self.style.SUCCESS(
                 f"""
-Import complete:
-  Created: {created}
-  Updated: {updated}
-  Rebuilt IDs: {rebuilt}
-  Skipped: {skipped}
-  Failed: {failed}
+SELF-HEAL IMPORT COMPLETE
+
+Created: {created}
+Updated: {updated}
+Healed Students (missing user): {healed_students}
+Healed Users (missing student): {healed_users}
+Rebuilt IDs: {rebuilt}
+Skipped: {skipped}
+Failed: {failed}
 """
             )
         )
