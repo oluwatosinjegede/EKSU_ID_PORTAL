@@ -90,7 +90,7 @@ def apply_for_id(request):
         # ---------- FILE ARRIVAL CHECK ----------
         if not passport:
             messages.error(request, "No file received by server.")
-            return redirect("apply_id")
+            return redirect("accounts:apply_id")
 
         # ---------- VALIDATION ----------
         errors = validate_passport(passport)
@@ -110,7 +110,7 @@ def apply_for_id(request):
 
                 if application.status == IDApplication.STATUS_APPROVED:
                     messages.error(request, "Application already approved.")
-                    return redirect("dashboard")
+                    return redirect("accounts:student_dashboard")
 
                 save_passport(application, passport)
 
@@ -125,12 +125,12 @@ def apply_for_id(request):
             print("========================")
 
             messages.error(request, "Passport upload failed.")
-            return redirect("apply_id")
+            return redirect("accounts:apply_id")
 
         messages.success(request, "Passport uploaded successfully.")
-        return redirect("dashboard")
+        return redirect("accounts:student_dashboard")
 
-    return render(request, "apply.html", {"application": application})
+    return render(request, "accounts/apply.html", {"application": application})
 
 
 # ======================================================
