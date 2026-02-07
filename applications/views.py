@@ -1,4 +1,5 @@
 import time
+import traceback
 from PIL import Image
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -10,7 +11,6 @@ from .models import IDApplication
 from students.models import Student
 from idcards.utils import generate_id_card
 
-import traceback
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 MAX_FILE_MB = 5
@@ -35,11 +35,10 @@ def validate_passport(file):
     if file.size > MAX_FILE_MB * 1024 * 1024:
         errors.append("Passport file too large (max 5MB).")
 
-    # Verify real image (not renamed fake file)
     try:
         img = Image.open(file)
         img.verify()
-        file.seek(0)  # reset pointer after verify
+        file.seek(0)
     except Exception:
         errors.append("Invalid or corrupted image file.")
 
@@ -55,13 +54,11 @@ def save_passport(application, passport):
 
     for attempt in range(UPLOAD_RETRIES):
         try:
-            # Remove old Cloudinary file (if exists)
             if application.passport:
                 application.passport.delete(save=False)
 
             application.passport = passport
             application.save()
-
             application.refresh_from_db()
 
             if not application.passport:
@@ -83,14 +80,6 @@ def save_passport(application, passport):
 @login_required
 def apply_for_id(request):
 
-    except Exception as e:
-       print("==== UPLOAD FAILURE ====")
-       print("ERROR:", str(e))
-       traceback.print_exc()
-       print("========================")
-       messages.error(request, f"Upload failed: {str(e)}")
-       return redirect("student_apply")
-
     student = get_object_or_404(Student, user=request.user)
     application = IDApplication.objects.filter(student=student).first()
 
@@ -98,27 +87,21 @@ def apply_for_id(request):
 
         passport = request.FILES.get("passport")
 
-        # ===============================
-        # HARD CHECK — DID FILE ARRIVE?
-        # ===============================
+        # ---------- FILE ARRIVAL CHECK ----------
         if not passport:
             messages.error(request, "No file received by server.")
-            return redirect("student_apply")
+            return redirect("apply_id")
 
-        # ===============================
-        # VALIDATE IMAGE (REAL FILE)
-        # ===============================
-        try:
-            img = Image.open(passport)
-            img.verify()
-            passport.seek(0)
-        except Exception:
-            messages.error(request, "Invalid or corrupted image.")
-            return redirect("student_apply")
+        # ---------- VALIDATION ----------
+        errors = validate_passport(passport)
+        if errors:
+            return render(
+                request,
+                "apply.html",
+                {"errors": errors, "application": application},
+            )
 
-        # ===============================
-        # SAVE PASSPORT (CLOUDINARY SAFE)
-        # ===============================
+        # ---------- SAVE ----------
         try:
             with transaction.atomic():
 
@@ -129,29 +112,26 @@ def apply_for_id(request):
                     messages.error(request, "Application already approved.")
                     return redirect("dashboard")
 
-                # Remove old Cloudinary file
-                if application.passport:
-                    application.passport.delete(save=False)
+                save_passport(application, passport)
 
-                application.passport = passport
                 application.status = IDApplication.STATUS_PENDING
                 application.reviewed_by = ""
-                application.save()
-
-                application.refresh_from_db()
-
-                if not application.passport:
-                    raise Exception("Passport did not persist")
+                application.save(update_fields=["status", "reviewed_by"])
 
         except Exception as e:
-            print("UPLOAD ERROR:", str(e))
-            messages.error(request, "Upload failed. Check server logs.")
-            return redirect("student_apply")
+            print("==== UPLOAD FAILURE ====")
+            print("ERROR:", str(e))
+            traceback.print_exc()
+            print("========================")
+
+            messages.error(request, "Passport upload failed.")
+            return redirect("apply_id")
 
         messages.success(request, "Passport uploaded successfully.")
         return redirect("dashboard")
 
     return render(request, "apply.html", {"application": application})
+
 
 # ======================================================
 # APPROVE ID (SAFE + IDEMPOTENT)
@@ -172,11 +152,11 @@ def approve_id(request, app_id):
             application.reviewed_by = request.user.username
             application.save(update_fields=["status", "reviewed_by"])
 
-            # Generate ID card (must be idempotent)
             generate_id_card(application)
 
     except Exception as e:
         print("[ID GENERATION ERROR]", str(e))
+        traceback.print_exc()
         messages.error(request, "ID generation failed.")
         return redirect("admin_dashboard")
 
