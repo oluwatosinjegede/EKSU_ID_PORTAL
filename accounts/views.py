@@ -10,6 +10,9 @@ from applications.models import IDApplication
 from idcards.models import IDCard
 from idcards.services import ensure_id_card_exists
 
+from .forms import ForcePasswordChangeForm
+
+
 
 # =========================
 # HOME
@@ -23,26 +26,36 @@ def home_view(request):
 # =========================
 def login_view(request):
     if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "").strip()
 
         user = authenticate(request, username=username, password=password)
 
-        if user:
-            login(request, user)
+        if user is None:
+            return render(
+                request,
+                "auth/login.html",
+                {"error": "Invalid login credentials"},
+            )
 
-            if getattr(user, "must_change_password", False):
-                return redirect("force-change-password")
+        login(request, user)
 
-            if hasattr(user, "student"):
-                return redirect("student-dashboard")
+        # FORCE PASSWORD CHANGE
+        if getattr(user, "must_change_password", False):
+            return redirect("force-change-password")
 
+        # ADMIN / STAFF
+        if user.is_superuser or user.role == "ADMIN":
             return redirect("/admin/")
 
-        return render(request, "auth/login.html", {"error": "Invalid login credentials"})
+        # STUDENT
+        if hasattr(user, "student"):
+            return redirect("student-dashboard")
+
+        # FALLBACK
+        return redirect("home")
 
     return render(request, "auth/login.html")
-
 
 # =========================
 # LOGOUT
@@ -171,24 +184,17 @@ def force_change_password_view(request):
         return redirect("student-dashboard")
 
     if request.method == "POST":
-        p1 = request.POST.get("password1")
-        p2 = request.POST.get("password2")
+        form = ForcePasswordChangeForm(user, request.POST)
+        if form.is_valid():
+            form.save()
 
-        if not p1 or not p2:
-            return render(request, "auth/force_change_password.html", {"error": "All fields are required"})
+            user.must_change_password = False
+            user.save(update_fields=["must_change_password"])
 
-        if p1 != p2:
-            return render(request, "auth/force_change_password.html", {"error": "Passwords do not match"})
+            update_session_auth_hash(request, user)
 
-        if len(p1) < 8:
-            return render(request, "auth/force_change_password.html", {"error": "Password must be at least 8 characters long"})
+            return redirect("student-dashboard")
+    else:
+        form = ForcePasswordChangeForm(user)
 
-        user.set_password(p1)
-        user.must_change_password = False
-        user.save()
-
-        update_session_auth_hash(request, user)
-
-        return redirect("student-dashboard")
-
-    return render(request, "auth/force_change_password.html")
+    return render(request, "auth/force_change_password.html", {"form": form})

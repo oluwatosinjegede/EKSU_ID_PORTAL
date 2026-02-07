@@ -10,15 +10,20 @@
     {% if messages %}
         {% for message in messages %}
             <div class="mb-4 p-3 rounded
-                {% if message.tags == 'error' %}bg-red-100 border border-red-300 text-red-700
-                {% elif message.tags == 'success' %}bg-green-100 border border-green-300 text-green-700
-                {% else %}bg-gray-100 border border-gray-300 text-gray-700{% endif %}">
+                {% if message.tags == 'error' %}
+                    bg-red-100 border border-red-300 text-red-700
+                {% elif message.tags == 'success' %}
+                    bg-green-100 border border-green-300 text-green-700
+                {% else %}
+                    bg-gray-100 border border-gray-300 text-gray-700
+                {% endif %}
+            ">
                 {{ message }}
             </div>
         {% endfor %}
     {% endif %}
 
-    <!-- FORM ERRORS -->
+    <!-- SERVER ERRORS -->
     {% if errors %}
         <div class="mb-4 bg-red-100 border border-red-300 text-red-700 p-3 rounded">
             <ul class="list-disc ml-5">
@@ -38,7 +43,8 @@
                 <div class="mt-3">
                     <p class="text-sm font-medium mb-1">Current Passport:</p>
                     <img src="{{ application.passport.url }}"
-                         class="w-32 h-40 object-cover border rounded">
+                         class="w-32 h-40 object-cover border rounded"
+                         alt="Current Passport">
                 </div>
             {% endif %}
         </div>
@@ -51,7 +57,7 @@
 
         {% csrf_token %}
 
-        <!-- PASSPORT -->
+        <!-- PASSPORT INPUT -->
         <div class="mb-6">
             <label class="block text-sm font-medium mb-2">
                 Passport Photograph
@@ -67,7 +73,7 @@
             >
 
             <p class="text-xs text-gray-500 mt-1">
-                JPG/PNG only. Max 5MB.
+                JPG or PNG only • Maximum 5MB
             </p>
         </div>
 
@@ -75,7 +81,8 @@
         <div id="previewBox" class="mb-6 hidden">
             <p class="text-sm font-medium mb-2">Preview:</p>
             <img id="passportPreview"
-                 class="w-32 h-40 object-cover border rounded">
+                 class="w-32 h-40 object-cover border rounded"
+                 alt="Preview">
         </div>
 
         <!-- STATUS -->
@@ -87,7 +94,7 @@
         <button
             type="submit"
             id="submitBtn"
-            class="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded font-semibold">
+            class="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded font-semibold transition">
             Submit Application
         </button>
     </form>
@@ -106,15 +113,19 @@ input.addEventListener("change", function () {
     const file = this.files[0];
     if (!file) return;
 
-    if (!["image/jpeg", "image/png"].includes(file.type)) {
-        alert("Only JPG or PNG allowed.");
+    const allowed = ["image/jpeg", "image/png"];
+
+    if (!allowed.includes(file.type)) {
+        alert("Only JPG or PNG images are allowed.");
         this.value = "";
+        previewBox.classList.add("hidden");
         return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-        alert("File too large (max 5MB).");
+        alert("File too large. Maximum size is 5MB.");
         this.value = "";
+        previewBox.classList.add("hidden");
         return;
     }
 
@@ -122,11 +133,13 @@ input.addEventListener("change", function () {
     previewBox.classList.remove("hidden");
 });
 
-/* ---------- Prevent empty submit ---------- */
+/* ---------- Prevent Empty Submit + Lock Button ---------- */
 form.addEventListener("submit", function (e) {
-    if (!input.files.length && !{{ application|yesno:"true,false" }}) {
+    const hasExisting = {{ application|yesno:"true,false" }};
+
+    if (!input.files.length && !hasExisting) {
         e.preventDefault();
-        alert("Please select a passport photo.");
+        alert("Please select a passport photograph.");
         return;
     }
 

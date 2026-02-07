@@ -19,12 +19,12 @@
         <div class="flex flex-wrap gap-4">
 
             <!-- LOGIN -->
-            <a href="{% url 'login' %}"
+            <a href="{% url 'accounts:login' %}"
                class="bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-800 transition">
                 Student Login
             </a>
 
-            <!-- VERIFY INFO PAGE (not UID link) -->
+            <!-- VERIFY INFO -->
             <a href="#verify-info"
                class="border border-blue-700 text-blue-700 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition">
                 How to Verify ID
@@ -35,7 +35,7 @@
 
     <!-- RIGHT -->
     <div class="bg-white p-8 rounded-xl shadow">
-        <ul class="space-y-4 text-gray-700">
+        <ul class="space-y-4 text-gray-700 text-base">
 
             <li>? Secure Login</li>
             <li>? Online ID Application</li>
@@ -60,7 +60,7 @@
     <ol class="list-decimal ml-6 space-y-2 text-gray-700">
         <li>Scan the QR code printed on the ID card</li>
         <li>The system opens the official verification page</li>
-        <li>The authentic ID image will be displayed</li>
+        <li>The authentic ID information will be displayed</li>
     </ol>
 
     <p class="text-sm text-gray-500 mt-4">

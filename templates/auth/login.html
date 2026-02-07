@@ -8,13 +8,14 @@
         Student Login
     </h2>
 
+    <!-- ERROR MESSAGE -->
     {% if error %}
-        <div class="mb-4 p-3 bg-red-100 text-red-700 rounded">
+        <div class="mb-4 p-3 bg-red-100 text-red-700 border border-red-300 rounded">
             {{ error }}
         </div>
     {% endif %}
 
-    <form method="post" novalidate>
+    <form method="post" id="loginForm" novalidate>
         {% csrf_token %}
 
         <!-- USERNAME -->
@@ -30,12 +31,13 @@
                 value="{{ request.POST.username|default:'' }}"
                 class="w-full border rounded px-4 py-2 mt-1 focus:outline-none focus:ring focus:border-blue-500"
                 autocomplete="username"
+                placeholder="e.g. EKSU/2023/001"
                 required
             >
         </div>
 
         <!-- PASSWORD -->
-        <div class="mb-6">
+        <div class="mb-6 relative">
             <label for="password" class="block text-sm font-medium">
                 Password
             </label>
@@ -44,14 +46,22 @@
                 id="password"
                 type="password"
                 name="password"
-                class="w-full border rounded px-4 py-2 mt-1 focus:outline-none focus:ring focus:border-blue-500"
+                class="w-full border rounded px-4 py-2 mt-1 pr-10 focus:outline-none focus:ring focus:border-blue-500"
                 autocomplete="current-password"
                 required
             >
+
+            <!-- SHOW / HIDE -->
+            <button type="button"
+                    id="togglePassword"
+                    class="absolute right-2 top-9 text-gray-500 text-sm">
+                Show
+            </button>
         </div>
 
         <!-- SUBMIT -->
         <button
+            id="loginBtn"
             type="submit"
             class="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded font-semibold transition"
         >
@@ -60,4 +70,29 @@
     </form>
 
 </div>
+
+<script>
+const form = document.getElementById("loginForm");
+const btn = document.getElementById("loginBtn");
+const toggle = document.getElementById("togglePassword");
+const pwd = document.getElementById("password");
+
+/* ---------- Prevent Double Submit ---------- */
+form.addEventListener("submit", function () {
+    btn.disabled = true;
+    btn.innerText = "Signing in...";
+});
+
+/* ---------- Show / Hide Password ---------- */
+toggle.addEventListener("click", function () {
+    if (pwd.type === "password") {
+        pwd.type = "text";
+        toggle.innerText = "Hide";
+    } else {
+        pwd.type = "password";
+        toggle.innerText = "Show";
+    }
+});
+</script>
+
 {% endblock %}

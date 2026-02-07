@@ -17,11 +17,14 @@
             </p>
 
             {% if not application %}
-                <a href="{% url 'apply_id' %}" class="text-blue-700 font-semibold hover:underline">
+                <a href="{% url 'apply_id' %}"
+                   class="text-blue-700 font-semibold hover:underline">
                     Apply ?
                 </a>
             {% else %}
-                <span class="text-gray-500 text-sm">Application submitted</span>
+                <span class="text-gray-500 text-sm">
+                    Application submitted
+                </span>
             {% endif %}
         </div>
 
@@ -31,9 +34,14 @@
 
             {% if application %}
                 <span class="inline-block px-3 py-1 rounded-full text-sm font-semibold
-                    {% if application.status == 'APPROVED' %}bg-green-100 text-green-700
-                    {% elif application.status == 'PENDING' %}bg-yellow-100 text-yellow-700
-                    {% else %}bg-gray-100 text-gray-700{% endif %}">
+                    {% if application.status == 'APPROVED' %}
+                        bg-green-100 text-green-700
+                    {% elif application.status == 'PENDING' %}
+                        bg-yellow-100 text-yellow-700
+                    {% else %}
+                        bg-gray-100 text-gray-700
+                    {% endif %}
+                ">
                     {{ application.status|capfirst }}
                 </span>
             {% else %}
@@ -49,15 +57,17 @@
                 <img
                     src="{{ id_card.image.url }}"
                     alt="Student ID Card"
-                    class="border rounded mb-4 max-w-full"
+                    class="border rounded mb-4 w-full max-w-xs mx-auto"
                 >
 
                 <a href="{% url 'download_id' id_card.uid %}"
-                   class="inline-block bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800">
+                   class="inline-block bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-800 transition">
                     Download ID Card
                 </a>
             {% else %}
-                <p class="text-gray-500">Your ID card is not yet available.</p>
+                <p class="text-gray-500">
+                    Your ID card is not yet available.
+                </p>
             {% endif %}
         </div>
 
@@ -69,6 +79,7 @@
 
         <div class="relative flex justify-between items-center">
 
+            <!-- Progress Line -->
             <div class="absolute top-5 left-0 right-0 h-1 bg-gray-200"></div>
 
             <!-- STEP 1 -->
@@ -117,23 +128,23 @@
         <div class="mt-6 text-sm">
             {% if timeline.issued %}
                 <p class="text-green-700 font-semibold">
-                    ?? Your ID card has been issued and is ready for download.
+                    Your ID card has been issued and is ready for download.
                 </p>
             {% elif timeline.approved %}
                 <p class="text-blue-700">
-                    ? Application approved. ID card is being generated.
+                    Application approved. ID card is being generated.
                 </p>
             {% elif timeline.review %}
                 <p class="text-yellow-600">
-                    ? Your application is currently under review.
+                    Your application is currently under review.
                 </p>
             {% elif timeline.applied %}
                 <p class="text-gray-600">
-                    ?? Application submitted successfully.
+                    Application submitted successfully.
                 </p>
             {% else %}
                 <p class="text-red-600">
-                    ? You have not applied for an ID card yet.
+                    You have not applied for an ID card yet.
                 </p>
             {% endif %}
         </div>
