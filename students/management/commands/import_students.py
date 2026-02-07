@@ -14,7 +14,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Stable student importer (FK-safe, login-safe, collision-proof, Railway-safe)"
+    help = "Stable student importer (FK-safe, login-safe, idempotent, OneToOne-safe, Railway-safe)"
 
     def handle(self, *args, **options):
 
@@ -59,7 +59,7 @@ class Command(BaseCommand):
                     with transaction.atomic():
 
                         # =================================================
-                        # ENSURE USER EXISTS (LOGIN SAFE)
+                        # 1. GET OR CREATE USER (LOGIN SAFE)
                         # =================================================
                         user, user_created = User.objects.get_or_create(
                             username=matric,
@@ -86,44 +86,49 @@ class Command(BaseCommand):
                                 user.save(update_fields=["first_name", "last_name"])
 
                         # =================================================
-                        # HARD COLLISION PROTECTION (OneToOne safe)
+                        # 2. ENSURE STUDENT BY MATRIC (PRIMARY KEY LOGIC)
                         # =================================================
-                        existing_owner = Student.objects.filter(user=user).first()
+                        student = Student.objects.filter(matric_number=matric).first()
 
-                        if existing_owner and existing_owner.matric_number != matric:
-                            # Create guaranteed unique username
-                            suffix = 1
-                            new_username = matric
+                        if student:
+                            # If Student exists but linked to different user, keep existing link
+                            if student.user_id != user.id:
+                                user = student.user
 
-                            while User.objects.filter(username=new_username).exists():
-                                suffix += 1
-                                new_username = f"{matric}_{suffix}"
-
-                            user = User.objects.create(
-                                username=new_username,
+                            # Update fields safely
+                            Student.objects.filter(id=student.id).update(
                                 first_name=first,
+                                middle_name=middle,
                                 last_name=last,
-                                role="STUDENT",
-                                must_change_password=True,
+                                department=dept,
+                                level=level,
+                                phone=phone,
                             )
-                            user.set_password("ChangeMe123!")
-                            user.save()
+                            created_flag = False
 
-                        # =================================================
-                        # CREATE / UPDATE STUDENT (FK SAFE)
-                        # =================================================
-                        student, created_flag = Student.objects.update_or_create(
-                            matric_number=matric,
-                            defaults={
-                                "user": user,
-                                "first_name": first,
-                                "middle_name": middle,
-                                "last_name": last,
-                                "department": dept,
-                                "level": level,
-                                "phone": phone,
-                            },
-                        )
+                        else:
+                            # =================================================
+                            # 3. ENSURE USER NOT ALREADY OWNED BY ANOTHER STUDENT
+                            # =================================================
+                            existing_owner = Student.objects.filter(user=user).first()
+
+                            if existing_owner:
+                                # Reuse existing student ? prevent OneToOne violation
+                                student = existing_owner
+                                created_flag = False
+                            else:
+                                # Safe create
+                                student = Student.objects.create(
+                                    user=user,
+                                    matric_number=matric,
+                                    first_name=first,
+                                    middle_name=middle,
+                                    last_name=last,
+                                    department=dept,
+                                    level=level,
+                                    phone=phone,
+                                )
+                                created_flag = True
 
                     if created_flag:
                         created += 1
