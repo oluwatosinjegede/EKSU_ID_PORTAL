@@ -14,7 +14,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Permanent safe student importer (FK-safe, login-safe, idempotent)"
+    help = "Safe student importer (FK-safe, login-safe, Railway-safe)"
 
     def handle(self, *args, **options):
 
@@ -26,7 +26,7 @@ class Command(BaseCommand):
 
         csv_path = Path("students/data/students.csv")
         if not csv_path.exists():
-            self.stderr.write("CSV not found")
+            self.stderr.write("CSV file not found")
             return
 
         created = 0
@@ -44,25 +44,24 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
 
+                first = row[0].strip()[:50]
+                middle = row[1].strip()[:50]
+                last = row[2].strip()[:50]
+                matric = row[3].strip().upper()
+                dept = row[4].strip()[:100]
+                level = row[5].strip()[:10]
+                phone = row[6].strip()[:20] if len(row) > 6 else ""
+
+                if matric.lower() in ("matric", "matric_no", "matric_number"):
+                    skipped += 1
+                    continue
+
                 try:
-                    first = row[0].strip()[:50]
-                    middle = row[1].strip()[:100]
-                    last = row[2].strip()[:50]
-                    matric = row[3].strip().upper()
-                    dept = row[4].strip()[:100]
-                    level = row[5].strip()[:10]
-                    phone = row[6].strip()[:20] if len(row) > 6 else ""
-
-                    # Skip header
-                    if matric.lower() in ("matric", "matric_no", "matric_number"):
-                        skipped += 1
-                        continue
-
                     with transaction.atomic():
 
-                        # =========================
-                        # ENSURE USER EXISTS
-                        # =========================
+                        # -----------------------------
+                        # Ensure USER exists (login-safe)
+                        # -----------------------------
                         user, user_created = User.objects.get_or_create(
                             username=matric,
                             defaults={
@@ -87,15 +86,14 @@ class Command(BaseCommand):
                             if changed:
                                 user.save(update_fields=["first_name", "last_name"])
 
-                        # =========================
-                        # FIX OneToOne COLLISION
-                        # =========================
-                        existing_student = Student.objects.filter(user=user).exclude(
+                        # -----------------------------
+                        # Fix OneToOne collision
+                        # -----------------------------
+                        conflict = Student.objects.filter(user=user).exclude(
                             matric_number=matric
                         ).first()
 
-                        if existing_student:
-                            # Create replacement user
+                        if conflict:
                             user = User.objects.create(
                                 username=f"{matric}_{Student.objects.count()}",
                                 first_name=first,
@@ -106,9 +104,9 @@ class Command(BaseCommand):
                             user.set_password("ChangeMe123!")
                             user.save()
 
-                        # =========================
-                        # CREATE / UPDATE STUDENT
-                        # =========================
+                        # -----------------------------
+                        # Create / Update STUDENT
+                        # -----------------------------
                         student, created_flag = Student.objects.update_or_create(
                             matric_number=matric,
                             defaults={
@@ -127,17 +125,14 @@ class Command(BaseCommand):
                     else:
                         updated += 1
 
-                    # =========================
-                    # OPTIONAL ID REBUILD
-                    # =========================
+                    # -----------------------------
+                    # Optional ID rebuild
+                    # -----------------------------
                     if FORCE_REBUILD:
-                        try:
-                            app = IDApplication.objects.filter(student=student).first()
-                            if app and app.passport:
-                                generate_id_card(app)
-                                rebuilt += 1
-                        except Exception as e:
-                            self.stderr.write(f"ID rebuild failed for {matric}: {e}")
+                        app = IDApplication.objects.filter(student=student).first()
+                        if app and app.passport:
+                            generate_id_card(app)
+                            rebuilt += 1? 
 
                 except IntegrityError as e:
                     failed += 1
@@ -147,9 +142,8 @@ class Command(BaseCommand):
                     failed += 1
                     self.stderr.write(f"Failed {matric}: {e}")
 
-              self.stdout.write(
-            self.style.SUCCESS(
-                f"""
+        self.stdout.write(
+            f"""
 Import complete:
   Created: {created}
   Updated: {updated}
@@ -157,5 +151,4 @@ Import complete:
   Skipped: {skipped}
   Failed: {failed}
 """
-            )
         )
