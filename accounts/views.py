@@ -113,7 +113,7 @@ def apply_id_view(request):
         # -------- HARD CHECK --------
         if not passport:
             messages.error(request, "No file received.")
-            return redirect("students:apply")
+            return redirect("accounts:apply")
 
         # -------- IMAGE VALIDATION --------
         try:
@@ -122,7 +122,7 @@ def apply_id_view(request):
             passport.seek(0)
         except Exception:
             messages.error(request, "Invalid or corrupted image.")
-            return redirect("students:apply")
+            return redirect("accounts:apply")
 
         try:
             with transaction.atomic():
@@ -153,12 +153,12 @@ def apply_id_view(request):
             print("UPLOAD ERROR:", str(e))
             traceback.print_exc()
             messages.error(request, "Upload failed. Check server logs.")
-            return redirect("student:apply")
+            return redirect("accounts:apply")
 
         messages.success(request, "Passport uploaded successfully.")
         return redirect("accounts:student_dashboard")
 
-    return render(request, "student/apply.html", {"application": application})
+    return render(request, "accounts/apply.html", {"application": application})
 
 
 # =========================
@@ -186,3 +186,5 @@ def force_change_password_view(request):
         form = ForcePasswordChangeForm(user)
 
     return render(request, "accounts/force_change_password.html", {"form": form})
+
+
