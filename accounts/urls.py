@@ -8,24 +8,13 @@ from .views import (
     force_change_password_view,
 )
 
-app_name = "accounts"
-
 urlpatterns = [
-    # =========================
-    # PUBLIC
-    # =========================
-    path("", home_view, name="home"),
+    path("", home_view, name="home"),              # ? REQUIRED
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
 
-    # =========================
-    # STUDENT
-    # =========================
     path("student/dashboard/", student_dashboard, name="student-dashboard"),
-    path("student/apply/", apply_id_view, name="student-apply"),
+    path("student/apply/", apply_id_view, name="apply_id"),
 
-    # =========================
-    # SECURITY
-    # =========================
     path("change-password/", force_change_password_view, name="force-change-password"),
 ]

@@ -8,26 +8,17 @@ from idcards.views import verify_id
 
 
 urlpatterns = [
-    # -------------------------------------------------
-    # ADMIN
-    # -------------------------------------------------
     path("admin/", admin.site.urls),
 
-    # -------------------------------------------------
-    # VERIFY ID (QR target — must be TOP LEVEL)
-    # -------------------------------------------------
+    # Accounts (home/login/etc)
+    path("", include("accounts.urls")),
+
+    # ID verification
     path("verify/<uuid:uid>/", verify_id, name="verify_id"),
 
-    # -------------------------------------------------
-    # CORE APP ROUTES
-    # -------------------------------------------------
-    path("", include("accounts.urls")),      # login, logout, dashboard
-    path("", include("applications.urls")),  # apply, approve
-    path("", include("idcards.urls")),       # download, API, etc.
+    # IDCards urls (download/verify extras)
+    path("", include("idcards.urls")),
 
-    # -------------------------------------------------
-    # FAVICON (prevents /favicon.ico 404 spam)
-    # -------------------------------------------------
     path(
         "favicon.ico",
         RedirectView.as_view(
@@ -37,9 +28,4 @@ urlpatterns = [
     ),
 ]
 
-
-# -------------------------------------------------
-# MEDIA SERVING (Railway — no nginx)
-# -------------------------------------------------
-if settings.MEDIA_URL and settings.MEDIA_ROOT:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
