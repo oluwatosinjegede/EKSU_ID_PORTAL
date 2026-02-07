@@ -25,6 +25,8 @@ ALLOWED_HOSTS = os.getenv(
     ".up.railway.app,localhost,127.0.0.1"
 ).split(",")
 
+AUTH_USER_MODEL = "accounts.User"
+
 # --------------------------------------------------
 # Applications
 # --------------------------------------------------

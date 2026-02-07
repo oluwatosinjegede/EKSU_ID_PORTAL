@@ -1,23 +1,31 @@
 from django.urls import path
-#from .views import force_password_change
 from .views import (
     home_view,
     login_view,
     logout_view,
     student_dashboard,
-    apply_id_view
+    apply_id_view,
+    force_change_password_view,
 )
-from .views import force_change_password_view
 
+app_name = "accounts"
 
 urlpatterns = [
-    path('', home_view, name='home'),
-    path('login/', login_view, name='login'),
-    path('logout/', logout_view, name='logout'),
+    # =========================
+    # PUBLIC
+    # =========================
+    path("", home_view, name="home"),
+    path("login/", login_view, name="login"),
+    path("logout/", logout_view, name="logout"),
 
-    path('student/dashboard/', student_dashboard, name='student-dashboard'),
-    path('student/apply/', apply_id_view, name='apply_id'),
-    path('change-password/', force_change_password_view, name='force-change-password'),
+    # =========================
+    # STUDENT
+    # =========================
+    path("student/dashboard/", student_dashboard, name="student-dashboard"),
+    path("student/apply/", apply_id_view, name="student-apply"),
+
+    # =========================
+    # SECURITY
+    # =========================
+    path("change-password/", force_change_password_view, name="force-change-password"),
 ]
-
-
