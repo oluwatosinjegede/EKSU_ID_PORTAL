@@ -14,7 +14,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Self-healing student importer (auto-repair, idempotent, FK-safe, OneToOne-safe)"
+    help = "Self-healing student importer (fully hardened, FK-safe, idempotent, zero-crash)"
 
     def handle(self, *args, **options):
 
@@ -32,8 +32,18 @@ class Command(BaseCommand):
 
         created = updated = healed_users = healed_students = rebuilt = skipped = failed = 0
 
+        # -------------------------------------------------
+        # CSV SANITIZER (fix broken quotes / encoding)
+        # -------------------------------------------------
         with csv_path.open(encoding="utf-8-sig", newline="") as f:
-            reader = csv.reader(f)
+
+            clean_lines = (
+                line.replace('"', '').strip()
+                for line in f
+                if line.strip()
+            )
+
+            reader = csv.reader(clean_lines)
 
             for row in reader:
 
@@ -49,7 +59,7 @@ class Command(BaseCommand):
                 level = row[5].strip()[:10]
                 phone = row[6].strip()[:20] if len(row) > 6 else ""
 
-                if matric.lower() in ("matric", "matric_no", "matric_number"):
+                if not matric or matric.lower() in ("matric", "matric_no", "matric_number"):
                     skipped += 1
                     continue
 
@@ -57,15 +67,16 @@ class Command(BaseCommand):
                     with transaction.atomic():
 
                         # -------------------------------------------------
-                        # 1. FIND / HEAL STUDENT BY MATRIC
+                        # 1. FIND STUDENT BY MATRIC
                         # -------------------------------------------------
                         student = Student.objects.filter(matric_number=matric).first()
+                        user = None
 
                         if student:
-                            try:
-                                user = student.user
-                            except User.DoesNotExist:
-                                # Heal orphan Student (missing User)
+                            # -------------------------------------------------
+                            # REPAIR BROKEN FK (student.user missing)
+                            # -------------------------------------------------
+                            if not student.user_id:
                                 user = User.objects.create(
                                     username=matric,
                                     first_name=first,
@@ -80,19 +91,32 @@ class Command(BaseCommand):
                                 student.save(update_fields=["user"])
                                 healed_students += 1
 
-                        else:
-                            user = None
+                            else:
+                                try:
+                                    user = student.user
+                                except User.DoesNotExist:
+                                    # Heal orphan student
+                                    user = User.objects.create(
+                                        username=matric,
+                                        first_name=first,
+                                        last_name=last,
+                                        role="STUDENT",
+                                        must_change_password=True,
+                                    )
+                                    user.set_password("ChangeMe123!")
+                                    user.save()
+
+                                    student.user = user
+                                    student.save(update_fields=["user"])
+                                    healed_students += 1
 
                         # -------------------------------------------------
-                        # 2. ENSURE USER EXISTS (ORPHAN USER HEAL)
+                        # 2. ENSURE USER EXISTS
                         # -------------------------------------------------
                         if not user:
                             user = User.objects.filter(username=matric).first()
 
-                            if user:
-                                # User exists but may not have Student
-                                healed_users += 1
-                            else:
+                            if not user:
                                 user = User.objects.create(
                                     username=matric,
                                     first_name=first,
@@ -102,18 +126,18 @@ class Command(BaseCommand):
                                 )
                                 user.set_password("ChangeMe123!")
                                 user.save()
+                            else:
+                                healed_users += 1
 
                         # -------------------------------------------------
-                        # 3. ENSURE ONE-TO-ONE SAFE
+                        # 3. ONE-TO-ONE SAFETY
                         # -------------------------------------------------
                         owner = Student.objects.filter(user=user).first()
-
                         if owner and owner.matric_number != matric:
-                            # Reuse owner instead of creating duplicate
                             student = owner
 
                         # -------------------------------------------------
-                        # 4. CREATE / UPDATE STUDENT
+                        # 4. CREATE OR UPDATE STUDENT
                         # -------------------------------------------------
                         if not student:
                             if not DRY_RUN:
@@ -153,11 +177,15 @@ class Command(BaseCommand):
                         except Exception:
                             pass
 
-                except IntegrityError:
+                except IntegrityError as e:
                     failed += 1
+                    self.stderr.write(f"INTEGRITY ERROR {matric}: {repr(e)}")
+                    continue
+
                 except Exception as e:
                     failed += 1
                     self.stderr.write(f"FAILED {matric}: {repr(e)}")
+                    continue
 
         self.stdout.write(
             self.style.SUCCESS(
