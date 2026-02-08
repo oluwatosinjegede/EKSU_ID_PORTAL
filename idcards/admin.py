@@ -8,6 +8,7 @@ from .services import ensure_id_card_exists
 
 @admin.register(IDCard)
 class IDCardAdmin(admin.ModelAdmin):
+
     list_display = (
         "student",
         "status",
@@ -35,7 +36,8 @@ class IDCardAdmin(admin.ModelAdmin):
     # STATUS COLUMN
     # =====================================================
     def status(self, obj):
-        if obj.image and getattr(obj.image, "name", None):
+        image_field = getattr(obj, "image", None)
+        if image_field and getattr(image_field, "name", None):
             return "READY"
         return "MISSING"
 
@@ -58,7 +60,7 @@ class IDCardAdmin(admin.ModelAdmin):
         image_field = getattr(obj, "image", None)
 
         if not image_field or not getattr(image_field, "url", None):
-            return "—"
+            return "-"   # SAFE ASCII (avoid encoding crash)
 
         return format_html(
             '<img src="{}" style="height:60px; border-radius:4px;" />',
@@ -84,7 +86,7 @@ class IDCardAdmin(admin.ModelAdmin):
     image_preview.short_description = "ID Card Preview"
 
     # =====================================================
-    # BULK REGENERATE ACTION (SELF-HEAL)
+    # BULK REGENERATE ACTION (SELF-HEAL SAFE)
     # =====================================================
     @admin.action(description="Regenerate selected ID cards")
     def regenerate_id_cards(self, request, queryset):
@@ -96,9 +98,10 @@ class IDCardAdmin(admin.ModelAdmin):
         for card in queryset.select_related("student"):
             try:
                 with transaction.atomic():
-                    url = ensure_id_card_exists(card)
 
-                    if url:
+                    result = ensure_id_card_exists(card)
+
+                    if result:
                         regenerated += 1
                     else:
                         skipped += 1
