@@ -167,7 +167,7 @@ def generate_id_card(idcard):
     card = apply_logo_watermark(card)
 
     # -------------------------------------------------
-    # SAVE TO CLOUDINARY (CORRECT WAY)
+    # SAVE TO CLOUDINARY (FINAL SAFE METHOD)
     # -------------------------------------------------
     try:
         buffer = BytesIO()
@@ -176,12 +176,16 @@ def generate_id_card(idcard):
 
         filename = f"{matric or idcard.uid}.png"
 
-        # IMPORTANT: use field.save(), NOT assignment
-        idcard.image.save(
-            filename,
-            ContentFile(buffer.read()),
-            save=True,
+        # IMPORTANT:
+        # Access field from MODEL CLASS (guaranteed descriptor)
+        field = idcard.__class__._meta.get_field("image")
+
+        field.save_form_data(
+            idcard,
+            ContentFile(buffer.read(), name=filename)
         )
+
+        idcard.save(update_fields=["image"])
 
         print("GENERATOR: SAVE OK", idcard.image.url)
         return idcard.image.url
