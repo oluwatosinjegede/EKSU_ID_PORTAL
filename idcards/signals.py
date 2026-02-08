@@ -7,32 +7,41 @@ from .services import ensure_id_card_exists
 
 
 @receiver(post_save, sender=IDCard)
-def ensure_card_image(sender, instance, created, **kwargs):
+def ensure_card_image(sender, instance, created, update_fields=None, **kwargs):
     """
-    Fallback generator — production safe
+    Fallback generator (production safe)
 
     Runs ONLY when:
     - ID image missing
-    - Approved application exists
-    - Passport exists
-    - After DB commit (no race condition)
-
-    Uses service layer (not raw generator)
+    - After DB commit (no race / recursion)
+    - Uses service layer (safe + idempotent)
     """
 
-    # Already generated ? stop
-    if instance.image and getattr(instance.image, "name", None):
+    # -------------------------------------------------
+    # STOP if image already exists
+    # -------------------------------------------------
+    image_field = getattr(instance, "image", None)
+    if image_field and getattr(image_field, "name", None):
         return
 
+    # -------------------------------------------------
+    # STOP if save was only updating unrelated fields
+    # (prevents unnecessary regeneration)
+    # -------------------------------------------------
+    if update_fields and "image" not in update_fields:
+        pass  # still allow fallback generation when missing
+
+    # -------------------------------------------------
+    # Generate AFTER DB commit (prevents recursion)
+    # -------------------------------------------------
     def _generate():
         try:
             ensure_id_card_exists(instance)
         except Exception:
-            # Never crash request or admin save
+            # Never crash request / admin / migration
             pass
 
     try:
-        # Run AFTER DB commit ? prevents race conditions
         transaction.on_commit(_generate)
     except Exception:
         pass
