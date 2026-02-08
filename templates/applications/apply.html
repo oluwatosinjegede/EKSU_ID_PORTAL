@@ -23,21 +23,10 @@
         {% endfor %}
     {% endif %}
 
-    <!-- SERVER ERRORS -->
-    {% if errors %}
-        <div class="mb-4 bg-red-100 border border-red-300 text-red-700 p-3 rounded">
-            <ul class="list-disc ml-5">
-                {% for error in errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% endif %}
-
     <!-- EXISTING APPLICATION -->
     {% if application %}
         <div class="mb-4 bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded">
-            <strong>Status:</strong> {{ application.status }}
+            <strong>Status:</strong> {{ application.status|default:"Pending" }}
 
             {% if application.passport %}
                 <div class="mt-3">
@@ -69,7 +58,7 @@
                 id="passportInput"
                 accept="image/jpeg,image/png"
                 class="w-full border rounded px-3 py-2 bg-white"
-                {% if not application %}required{% endif %}
+                {% if not application or not application.passport %}required{% endif %}
             >
 
             <p class="text-xs text-gray-500 mt-1">
@@ -95,7 +84,11 @@
             type="submit"
             id="submitBtn"
             class="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded font-semibold transition">
-            Submit Application
+            {% if application and application.passport %}
+                Update Passport
+            {% else %}
+                Submit Application
+            {% endif %}
         </button>
     </form>
 </div>
@@ -108,34 +101,38 @@ const form = document.getElementById("uploadForm");
 const btn = document.getElementById("submitBtn");
 const status = document.getElementById("uploadStatus");
 
+/* ---------- Safe flag from Django ---------- */
+const hasExisting = {{ application|yesno:"true,false"|default:"false" }};
+
 /* ---------- Preview + Validate ---------- */
-input.addEventListener("change", function () {
-    const file = this.files[0];
-    if (!file) return;
+if (input) {
+    input.addEventListener("change", function () {
+        const file = this.files[0];
+        if (!file) return;
 
-    const allowed = ["image/jpeg", "image/png"];
+        const allowed = ["image/jpeg", "image/png"];
 
-    if (!allowed.includes(file.type)) {
-        alert("Only JPG or PNG images are allowed.");
-        this.value = "";
-        previewBox.classList.add("hidden");
-        return;
-    }
+        if (!allowed.includes(file.type)) {
+            alert("Only JPG or PNG images are allowed.");
+            this.value = "";
+            previewBox.classList.add("hidden");
+            return;
+        }
 
-    if (file.size > 5 * 1024 * 1024) {
-        alert("File too large. Maximum size is 5MB.");
-        this.value = "";
-        previewBox.classList.add("hidden");
-        return;
-    }
+        if (file.size > 5 * 1024 * 1024) {
+            alert("File too large. Maximum size is 5MB.");
+            this.value = "";
+            previewBox.classList.add("hidden");
+            return;
+        }
 
-    preview.src = URL.createObjectURL(file);
-    previewBox.classList.remove("hidden");
-});
+        preview.src = URL.createObjectURL(file);
+        previewBox.classList.remove("hidden");
+    });
+}
 
 /* ---------- Prevent Empty Submit + Lock Button ---------- */
 form.addEventListener("submit", function (e) {
-    const hasExisting = {{ application|yesno:"true,false" }};
 
     if (!input.files.length && !hasExisting) {
         e.preventDefault();

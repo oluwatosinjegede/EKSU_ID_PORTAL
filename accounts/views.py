@@ -12,6 +12,7 @@ from idcards.services import ensure_id_card_exists
 
 from .forms import ForcePasswordChangeForm
 
+
 # =========================
 # HOME
 # =========================
@@ -32,10 +33,9 @@ def login_view(request):
 
         user = authenticate(request, username=username, password=password)
 
-        if user is not None and user.is_active:
+        if user and user.is_active:
             login(request, user)
 
-            # Force password change if required
             if getattr(user, "must_change_password", False):
                 return redirect("accounts:force_change_password")
 
@@ -44,12 +44,14 @@ def login_view(request):
         messages.error(request, "Invalid login credentials")
 
     return render(request, "accounts/login.html")
+
+
 # =========================
 # LOGOUT
 # =========================
 def logout_view(request):
     logout(request)
-    return redirect("account:home")
+    return redirect("accounts:home")
 
 
 # =========================
@@ -57,13 +59,17 @@ def logout_view(request):
 # =========================
 @login_required
 def student_dashboard(request):
-    return render(request, "accounts/student_dashboard.html")
-    student = get_object_or_404(Student, user=request.user)
+
+    student = Student.objects.filter(user=request.user).first()
+
+    if not student:
+        messages.error(request, "Student profile not found. Contact admin.")
+        return redirect("accounts:home")
 
     application = IDApplication.objects.filter(student=student).first()
     id_card = IDCard.objects.filter(student=student).first()
 
-    # Auto rebuild ID if approved but image missing
+    # Auto-repair missing ID image
     if id_card and not id_card.image:
         try:
             ensure_id_card_exists(id_card)
@@ -94,34 +100,32 @@ def student_dashboard(request):
 
 
 # =========================
-# APPLY FOR ID (PASSPORT ONLY — BULLETPROOF)
+# APPLY FOR ID
 # =========================
 @login_required
 def apply_id_view(request):
 
-    print("=== APPLY VIEW HIT ===")
-    print("METHOD:", request.method)
-    print("FILES:", request.FILES)
-
     student = get_object_or_404(Student, user=request.user)
     application = IDApplication.objects.filter(student=student).first()
 
+    # -------------------------
+    # POST — Upload passport
+    # -------------------------
     if request.method == "POST":
 
         passport = request.FILES.get("passport")
 
-        # -------- HARD CHECK --------
         if not passport:
-            messages.error(request, "No file received.")
+            messages.error(request, "Please select a passport photograph.")
             return redirect("accounts:apply")
 
-        # -------- IMAGE VALIDATION --------
+        # Validate image safely
         try:
             img = Image.open(passport)
             img.verify()
             passport.seek(0)
         except Exception:
-            messages.error(request, "Invalid or corrupted image.")
+            messages.error(request, "Invalid or corrupted image file.")
             return redirect("accounts:apply")
 
         try:
@@ -134,7 +138,7 @@ def apply_id_view(request):
                     messages.error(request, "Application already approved.")
                     return redirect("accounts:student_dashboard")
 
-                # Remove old Cloudinary file
+                # Delete previous file (Cloudinary / storage safe)
                 if application.passport:
                     application.passport.delete(save=False)
 
@@ -143,22 +147,17 @@ def apply_id_view(request):
                 application.reviewed_by = ""
                 application.save()
 
-                application.refresh_from_db()
-
-                if not application.passport:
-                    raise Exception("Passport did not persist")
-
-        except Exception as e:
-            import traceback
-            print("UPLOAD ERROR:", str(e))
-            traceback.print_exc()
-            messages.error(request, "Upload failed. Check server logs.")
+        except Exception:
+            messages.error(request, "Upload failed. Try again.")
             return redirect("accounts:apply")
 
         messages.success(request, "Passport uploaded successfully.")
         return redirect("accounts:student_dashboard")
 
-    return render(request, "accounts/apply.html", {"application": application})
+    # -------------------------
+    # GET — Show apply page
+    # -------------------------
+    return render(request, "applications/apply.html", {"application": application})
 
 
 # =========================
@@ -166,6 +165,7 @@ def apply_id_view(request):
 # =========================
 @login_required
 def force_change_password_view(request):
+
     user = request.user
 
     if not getattr(user, "must_change_password", False):
@@ -180,11 +180,10 @@ def force_change_password_view(request):
             user.save(update_fields=["must_change_password"])
 
             update_session_auth_hash(request, user)
+            messages.success(request, "Password changed successfully.")
 
             return redirect("accounts:student_dashboard")
     else:
         form = ForcePasswordChangeForm(user)
 
     return render(request, "accounts/force_change_password.html", {"form": form})
-
-
