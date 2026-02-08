@@ -14,6 +14,15 @@ def generate_id_card(application: IDApplication) -> IDCard:
     Create/reuse IDCard and generate image.
     Fully idempotent, Cloudinary-safe, race-condition safe.
     """
+    print("ID SERVICE: START")
+
+    if application.status != IDApplication.STATUS_APPROVED:
+        print("ID SERVICE: NOT APPROVED")
+        return None
+
+    if not application.passport:
+        print("ID SERVICE: NO PASSPORT")
+        return None
 
     if not application or not application.student:
         raise ValueError("Invalid application or missing student")
@@ -32,6 +41,8 @@ def generate_id_card(application: IDApplication) -> IDCard:
         # Get or create IDCard
         # -------------------------------------------------
         id_card, _ = IDCard.objects.get_or_create(student=student)
+
+        print("ID SERVICE: IDCARD OK", id_card.id)
 
         # -------------------------------------------------
         # Ensure passport exists on IDCard (sync if missing)
@@ -68,7 +79,14 @@ def generate_id_card(application: IDApplication) -> IDCard:
         # -------------------------------------------------
         # Generate ID image
         # -------------------------------------------------
+        print("ID SERVICE: GENERATING IMAGE...")
+
         build_id_card(id_card)
+
+        if id_card.image:
+            print("ID SERVICE: SUCCESS", id_card.image.url)
+        else:
+            print("ID SERVICE: FAILED — NO IMAGE")
 
         id_card.refresh_from_db()
         return id_card

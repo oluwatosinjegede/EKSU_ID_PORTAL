@@ -110,6 +110,8 @@ def load_passport(student):
 # MAIN GENERATOR (ULTRA SAFE + IDEMPOTENT)
 # =====================================================
 def generate_id_card(idcard):
+    
+    print("GENERATOR: START")
 
     # ---------- HARD GUARDS ----------
     if not idcard:
@@ -125,7 +127,7 @@ def generate_id_card(idcard):
 
     passport = load_passport(student)
     if not passport:
-        print("PASSPORT NOT AVAILABLE")
+        print("GENERATOR: NO PASSPORT FOUND")
         return None
 
     # ---------- CREATE IMAGE ----------
@@ -165,6 +167,8 @@ def generate_id_card(idcard):
 
     # Watermark
     card = apply_logo_watermark(card)
+
+    print("GENERATOR: SAVING IMAGE...")
 
     # =====================================================
     # SAVE TO CLOUDINARY (HARDENED)
