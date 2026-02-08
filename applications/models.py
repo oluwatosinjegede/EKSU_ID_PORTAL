@@ -1,9 +1,11 @@
 from django.db import models
+from django.utils import timezone
 from students.models import Student
 from cloudinary.models import CloudinaryField
 
 
 class IDApplication(models.Model):
+
     # =====================================================
     # STATUS
     # =====================================================
@@ -18,7 +20,7 @@ class IDApplication(models.Model):
     ]
 
     # =====================================================
-    # RELATION
+    # RELATION (ONE APPLICATION PER STUDENT)
     # =====================================================
     student = models.OneToOneField(
         Student,
@@ -34,6 +36,8 @@ class IDApplication(models.Model):
         "passport",
         resource_type="image",
         folder="id_applications/passports",
+        blank=True,
+        null=True,
     )
 
     # =====================================================
@@ -52,10 +56,21 @@ class IDApplication(models.Model):
         default="",
     )
 
+    reviewed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+
+    rejection_reason = models.TextField(
+        blank=True,
+        default="",
+    )
+
     # =====================================================
     # TIMESTAMP
     # =====================================================
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     # =====================================================
     # HELPERS
@@ -71,6 +86,35 @@ class IDApplication(models.Model):
     @property
     def is_rejected(self):
         return self.status == self.STATUS_REJECTED
+
+    @property
+    def has_passport(self):
+        return bool(self.passport)
+
+    # =====================================================
+    # STATE TRANSITION HELPERS
+    # =====================================================
+    def approve(self, reviewer_username=""):
+        """Safely approve application."""
+        self.status = self.STATUS_APPROVED
+        self.reviewed_by = reviewer_username
+        self.reviewed_at = timezone.now()
+        self.save(update_fields=["status", "reviewed_by", "reviewed_at"])
+
+    def reject(self, reviewer_username="", reason=""):
+        """Safely reject application."""
+        self.status = self.STATUS_REJECTED
+        self.reviewed_by = reviewer_username
+        self.reviewed_at = timezone.now()
+        self.rejection_reason = reason
+        self.save(
+            update_fields=[
+                "status",
+                "reviewed_by",
+                "reviewed_at",
+                "rejection_reason",
+            ]
+        )
 
     # =====================================================
     # STRING
