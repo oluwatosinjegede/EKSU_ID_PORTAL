@@ -175,24 +175,23 @@ def generate_id_card(idcard):
     # =====================================================
     # SAVE TO CLOUDINARY (HARDENED)
     # =====================================================
+    # ---------- SAVE IMAGE SAFELY ----------
     try:
+        print("GENERATOR: SAVING IMAGE...")
+
         buffer = BytesIO()
         card.save(buffer, format="PNG")
         buffer.seek(0)
 
-        content = ContentFile(buffer.getvalue())
-
-        if not content.size:
-            raise ValueError("Generated image empty")
-
         filename = f"idcards/{matric or idcard.uid}.png"
 
-        idcard.image.save(filename, content, save=True)
-        idcard.refresh_from_db()
+        # IMPORTANT: assign file object, then save model
+        idcard.image = ContentFile(buffer.read(), name=filename)
+        idcard.save(update_fields=["image"])
 
-        print("ID GENERATED:", filename)
+        print("GENERATOR: SAVE OK", idcard.image.url)
         return idcard.image.url
 
     except Exception as e:
         print("ID SAVE FAILED:", str(e))
-        return None
+    return None
