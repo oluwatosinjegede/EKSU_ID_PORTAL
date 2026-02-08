@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.utils import timezone
 
 from idcards.models import IDCard
 from idcards.generator import generate_id_card as build_id_card
@@ -11,11 +12,14 @@ from applications.models import IDApplication
 def generate_id_card(application: IDApplication):
     """
     Create/reuse IDCard and generate image.
-    Cloudinary-safe, idempotent, race-safe.
+    Cloudinary-safe, idempotent, race-safe, production-safe.
     """
 
     print("ID SERVICE: START")
 
+    # ---------------------------
+    # HARD VALIDATION
+    # ---------------------------
     if not application or not application.student:
         print("ID SERVICE: INVALID APPLICATION")
         return None
@@ -30,34 +34,45 @@ def generate_id_card(application: IDApplication):
 
     student = application.student
 
-    with transaction.atomic():
+    try:
+        with transaction.atomic():
 
-        # -------------------------------------------------
-        # Get or create IDCard
-        # -------------------------------------------------
-        id_card, _ = IDCard.objects.get_or_create(student=student)
-        print("ID SERVICE: IDCARD OK", id_card.id)
+            # -------------------------------------------------
+            # Lock row (prevents race / double generation)
+            # -------------------------------------------------
+            id_card, _ = (
+                IDCard.objects.select_for_update()
+                .get_or_create(student=student)
+            )
 
-        # -------------------------------------------------
-        # If image already exists ? return (IDEMPOTENT)
-        # -------------------------------------------------
-        if id_card.image and getattr(id_card.image, "name", None):
-            print("ID SERVICE: IMAGE ALREADY EXISTS")
-            return id_card
+            print("ID SERVICE: IDCARD OK", id_card.id)
 
-        # -------------------------------------------------
-        # Generate image (passport read from Application via URL)
-        # -------------------------------------------------
-        print("ID SERVICE: GENERATING IMAGE...")
-        build_id_card(id_card)
+            # -------------------------------------------------
+            # IDEMPOTENT — Skip if already generated
+            # -------------------------------------------------
+            if id_card.image and getattr(id_card.image, "name", None):
+                print("ID SERVICE: IMAGE EXISTS")
+                return id_card
 
-        id_card.refresh_from_db()
+            # -------------------------------------------------
+            # GENERATE IMAGE
+            # (passport is read from Application inside generator)
+            # -------------------------------------------------
+            print("ID SERVICE: GENERATING IMAGE")
+            build_id_card(id_card)
 
-        if id_card.image and getattr(id_card.image, "name", None):
-            print("ID SERVICE: SUCCESS", id_card.image.url)
-            return id_card
+            # Refresh after generator
+            id_card.refresh_from_db()
 
-        print("ID SERVICE: FAILED — NO IMAGE")
+            if id_card.image and getattr(id_card.image, "name", None):
+                print("ID SERVICE: SUCCESS", id_card.image.url)
+                return id_card
+
+            print("ID SERVICE: FAILED - NO IMAGE")
+            return None
+
+    except Exception as e:
+        print("ID SERVICE ERROR:", str(e))
         return None
 
 
@@ -66,22 +81,25 @@ def generate_id_card(application: IDApplication):
 # =====================================================
 def ensure_id_card_exists(id_card):
     """
-    Fully self-healing ID repair.
+    Fully self-healing ID repair engine.
 
-    Repairs:
+    Repairs automatically:
     - Missing image
-    - Broken cards
+    - Broken image
     - Late approval
+    - Generator failure recovery
     """
 
     if not id_card:
         return None
 
-    # Already exists
+    # Already generated ? return fast
     if id_card.image and getattr(id_card.image, "name", None):
         return id_card.image.url
 
-    # Find approved application
+    # -------------------------------------------------
+    # Locate approved application
+    # -------------------------------------------------
     application = (
         IDApplication.objects
         .filter(student=id_card.student, status=IDApplication.STATUS_APPROVED)
@@ -89,25 +107,33 @@ def ensure_id_card_exists(id_card):
     )
 
     if not application:
-        print("ID HEAL: No approved application")
+        print("ID HEAL: NO APPROVED APPLICATION")
         return None
 
     if not application.passport:
-        print("ID HEAL: Approved application has no passport")
+        print("ID HEAL: APPROVED APPLICATION HAS NO PASSPORT")
         return None
 
     try:
         with transaction.atomic():
 
-            print("ID HEAL: REBUILDING IMAGE...")
+            print("ID HEAL: REBUILD START")
+
+            # Lock row to avoid concurrent rebuild
+            id_card = (
+                IDCard.objects.select_for_update()
+                .get(pk=id_card.pk)
+            )
+
             build_id_card(id_card)
+
             id_card.refresh_from_db()
 
             if id_card.image and getattr(id_card.image, "name", None):
                 print("ID HEAL: SUCCESS")
                 return id_card.image.url
 
-            print("ID HEAL: FAILED — NO IMAGE")
+            print("ID HEAL: FAILED - NO IMAGE")
             return None
 
     except Exception as e:
