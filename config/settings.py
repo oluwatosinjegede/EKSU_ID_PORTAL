@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "accounts",
     "students",
     "idcards",
+    "idcards.apps.IdcardsConfig",
 
     # Cloudinary
     "cloudinary",

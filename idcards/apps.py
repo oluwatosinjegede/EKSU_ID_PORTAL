@@ -6,5 +6,4 @@ class IdcardsConfig(AppConfig):
     name = "idcards"
 
     def ready(self):
-        # Import signals safely (no circular import)
-        import idcards.signals  # noqa
+        import idcards.signals

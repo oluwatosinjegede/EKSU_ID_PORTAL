@@ -3,11 +3,11 @@ from django.db import transaction
 
 from .models import IDApplication
 from accounts.admin_mixins import RoleRestrictedAdminMixin
-from idcards.services import generate_id_card   # ? SERVICE (NOT generator)
+from idcards.services import generate_id_card
 
 
 # ======================================================
-# BULK APPROVAL ACTION — PRODUCTION SAFE
+# BULK APPROVAL ACTION — ATOMIC + IDEMPOTENT
 # ======================================================
 @admin.action(description="Approve application and generate ID card")
 def approve_application(modeladmin, request, queryset):
@@ -28,12 +28,16 @@ def approve_application(modeladmin, request, queryset):
 
     for application in queryset.select_related("student"):
 
-        # Already approved
+        # ---------------------------------------------
+        # Skip already approved
+        # ---------------------------------------------
         if application.status == IDApplication.STATUS_APPROVED:
             skipped += 1
             continue
 
+        # ---------------------------------------------
         # Passport required
+        # ---------------------------------------------
         if not application.passport:
             skipped += 1
             modeladmin.message_user(
@@ -46,12 +50,16 @@ def approve_application(modeladmin, request, queryset):
         try:
             with transaction.atomic():
 
-                # Approve
+                # -----------------------------------------
+                # Mark approved
+                # -----------------------------------------
                 application.status = IDApplication.STATUS_APPROVED
                 application.reviewed_by = request.user.get_username()
                 application.save(update_fields=["status", "reviewed_by"])
 
-                # Generate ID via SERVICE (safe, idempotent)
+                # -----------------------------------------
+                # Generate ID (SERVICE = safe + idempotent)
+                # -----------------------------------------
                 generate_id_card(application)
 
                 approved += 1
@@ -72,14 +80,19 @@ def approve_application(modeladmin, request, queryset):
 
 
 # ======================================================
-# ADMIN CONFIG — SAFE
+# ADMIN CONFIG — SAFE + SELF-HEAL
 # ======================================================
 @admin.register(IDApplication)
 class IDApplicationAdmin(RoleRestrictedAdminMixin, admin.ModelAdmin):
 
     allowed_roles = ["ADMIN", "REVIEWER", "APPROVER"]
 
-    list_display = ("student", "status", "created_at")
+    list_display = (
+        "student",
+        "status",
+        "created_at",
+    )
+
     list_filter = ("status",)
 
     search_fields = (
@@ -90,7 +103,10 @@ class IDApplicationAdmin(RoleRestrictedAdminMixin, admin.ModelAdmin):
 
     ordering = ("-created_at",)
 
-    readonly_fields = ("created_at", "reviewed_by")
+    readonly_fields = (
+        "created_at",
+        "reviewed_by",
+    )
 
     fields = (
         "student",
@@ -102,14 +118,16 @@ class IDApplicationAdmin(RoleRestrictedAdminMixin, admin.ModelAdmin):
 
     actions = [approve_application]
 
-    # --------------------------------------------------
-    # Ensure ID generation when admin edits manually
-    # --------------------------------------------------
+    # ==================================================
+    # SELF-HEAL: Generate ID when admin edits manually
+    # ==================================================
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
 
+        # Only trigger when APPROVED + passport exists
         if obj.status == IDApplication.STATUS_APPROVED and obj.passport:
             try:
-                generate_id_card(obj)   # ? SERVICE
+                generate_id_card(obj)
             except Exception:
+                # Never break admin save
                 pass

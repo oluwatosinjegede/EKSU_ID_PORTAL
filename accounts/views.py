@@ -55,7 +55,7 @@ def logout_view(request):
 
 
 # =========================
-# STUDENT DASHBOARD
+# STUDENT DASHBOARD (SELF-HEAL)
 # =========================
 @login_required
 def student_dashboard(request):
@@ -69,15 +69,17 @@ def student_dashboard(request):
     application = IDApplication.objects.filter(student=student).first()
     id_card = IDCard.objects.filter(student=student).first()
 
-    # Auto-repair missing ID image
-    if id_card and not id_card.image:
+    # --------------------------------------------------
+    # SELF-HEAL: Ensure ID image exists when approved
+    # --------------------------------------------------
+    if id_card and not getattr(id_card.image, "name", None):
         try:
             ensure_id_card_exists(id_card)
             id_card.refresh_from_db()
         except Exception:
             pass
 
-    issued = bool(id_card and id_card.image)
+    issued = bool(id_card and getattr(id_card.image, "name", None))
 
     timeline = {
         "applied": bool(application),
@@ -100,7 +102,7 @@ def student_dashboard(request):
 
 
 # =========================
-# APPLY FOR ID
+# APPLY FOR ID (SAFE UPLOAD)
 # =========================
 @login_required
 def apply_id_view(request):
@@ -108,9 +110,6 @@ def apply_id_view(request):
     student = get_object_or_404(Student, user=request.user)
     application = IDApplication.objects.filter(student=student).first()
 
-    # -------------------------
-    # POST — Upload passport
-    # -------------------------
     if request.method == "POST":
 
         passport = request.FILES.get("passport")
@@ -119,7 +118,9 @@ def apply_id_view(request):
             messages.error(request, "Please select a passport photograph.")
             return redirect("accounts:apply")
 
-        # Validate image safely
+        # --------------------------------------------------
+        # Validate image safely (prevents corrupt upload)
+        # --------------------------------------------------
         try:
             img = Image.open(passport)
             img.verify()
@@ -134,13 +135,17 @@ def apply_id_view(request):
                 if not application:
                     application = IDApplication.objects.create(student=student)
 
+                # Prevent reapply after approval
                 if application.status == IDApplication.STATUS_APPROVED:
                     messages.error(request, "Application already approved.")
                     return redirect("accounts:student_dashboard")
 
-                # Delete previous file (Cloudinary / storage safe)
+                # Delete previous passport safely
                 if application.passport:
-                    application.passport.delete(save=False)
+                    try:
+                        application.passport.delete(save=False)
+                    except Exception:
+                        pass
 
                 application.passport = passport
                 application.status = IDApplication.STATUS_PENDING
@@ -154,9 +159,6 @@ def apply_id_view(request):
         messages.success(request, "Passport uploaded successfully.")
         return redirect("accounts:student_dashboard")
 
-    # -------------------------
-    # GET — Show apply page
-    # -------------------------
     return render(request, "applications/apply.html", {"application": application})
 
 
