@@ -62,7 +62,7 @@ def apply_logo_watermark(card):
 
 
 # =====================================================
-# SAFE STUDENT DATA
+# STUDENT DATA
 # =====================================================
 def get_student_details(student):
     first = str(getattr(student, "first_name", "") or "").strip()
@@ -80,9 +80,8 @@ def get_student_details(student):
 
 
 # =====================================================
-# SAFE PASSPORT LOADER (NO EMPTY READ, NO POINTER BUG)
+# LOAD PASSPORT FROM CLOUDINARY URL
 # =====================================================
-
 def load_passport(student):
     app = IDApplication.objects.filter(
         student=student,
@@ -94,7 +93,7 @@ def load_passport(student):
         return None
 
     try:
-        url = app.passport.url   # Cloudinary URL
+        url = app.passport.url
         response = requests.get(url, timeout=15)
 
         if response.status_code != 200:
@@ -108,23 +107,24 @@ def load_passport(student):
         print("GENERATOR: PASSPORT LOAD FAILED:", str(e))
         return None
 
+
 # =====================================================
-# MAIN GENERATOR (ULTRA SAFE + IDEMPOTENT)
+# MAIN GENERATOR (CLOUDINARY SAFE)
 # =====================================================
 def generate_id_card(idcard):
-    
+
     print("GENERATOR: START")
 
-    # ---------- HARD GUARDS ----------
     if not idcard:
         return None
 
-    if idcard.image and getattr(idcard.image, "name", None):
+    # Idempotent guard
+    if idcard.image and getattr(idcard.image, "public_id", None):
         return idcard.image.url
 
     student = getattr(idcard, "student", None)
     if not student:
-        print("NO STUDENT ON IDCARD")
+        print("GENERATOR: NO STUDENT")
         return None
 
     passport = load_passport(student)
@@ -132,21 +132,20 @@ def generate_id_card(idcard):
         print("GENERATOR: NO PASSPORT FOUND")
         return None
 
-    # ---------- CREATE IMAGE ----------
+    # -------------------------------------------------
+    # BUILD IMAGE
+    # -------------------------------------------------
     width, height = 1010, 640
     card = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(card)
 
     font_big, font_mid, font_small = load_fonts()
 
-    # Header
     draw.rectangle((0, 0, width, 120), fill=(0, 102, 0))
     draw.text((30, 30), "EKSU STUDENT ID CARD", font=font_big, fill="white")
 
-    # Passport
     card.paste(passport, (50, 180))
 
-    # Student data
     full_name, matric, dept, level, phone = get_student_details(student)
 
     draw.text((320, 200), f"Name: {full_name}", font=font_mid, fill="black")
@@ -155,43 +154,38 @@ def generate_id_card(idcard):
     draw.text((320, 380), f"Level: {level}", font=font_mid, fill="black")
     draw.text((320, 440), f"Phone: {phone}", font=font_mid, fill="black")
 
-    # QR Code
     try:
         verify_url = f"{settings.SITE_URL}/verify/{idcard.uid}/"
         qr_img = create_qr_code(verify_url).resize((160, 160))
         card.paste(qr_img, (820, 380))
-    except Exception as e:
-        print("QR FAILED:", str(e))
+    except Exception:
+        pass
 
-    # Footer
     draw.rectangle((0, height - 80, width, height), fill=(0, 102, 0))
     draw.text((40, height - 60), "Property of EKSU", font=font_small, fill="white")
 
-    # Watermark
     card = apply_logo_watermark(card)
 
-    print("GENERATOR: SAVING IMAGE...")
-
-    # =====================================================
-    # SAVE TO CLOUDINARY (HARDENED)
-    # =====================================================
-    # ---------- SAVE IMAGE SAFELY ----------
+    # -------------------------------------------------
+    # SAVE TO CLOUDINARY (CORRECT WAY)
+    # -------------------------------------------------
     try:
-        print("GENERATOR: SAVING IMAGE...")
-
         buffer = BytesIO()
         card.save(buffer, format="PNG")
         buffer.seek(0)
 
-        filename = f"idcards/{matric or idcard.uid}.png"
+        filename = f"{matric or idcard.uid}.png"
 
-        # IMPORTANT: assign file object, then save model
-        idcard.image = ContentFile(buffer.read(), name=filename)
-        idcard.save(update_fields=["image"])
+        # IMPORTANT: use field.save(), NOT assignment
+        idcard.image.save(
+            filename,
+            ContentFile(buffer.read()),
+            save=True,
+        )
 
         print("GENERATOR: SAVE OK", idcard.image.url)
         return idcard.image.url
 
     except Exception as e:
-        print("ID SAVE FAILED:", str(e))
-    return None
+        print("GENERATOR SAVE FAILED:", str(e))
+        return None

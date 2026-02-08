@@ -1,24 +1,34 @@
 from django.db import models
 from students.models import Student
-import uuid
 from cloudinary.models import CloudinaryField
+import uuid
 
-# =========================
-# SAFE PATH BUILDERS
-# =========================
+
+# =====================================================
+# TEMPORARY MIGRATION COMPATIBILITY FIX (OPTION A)
+# Required by old migrations — DO NOT REMOVE YET
+# =====================================================
 def idcard_upload_path(instance, filename):
+    """
+    Legacy function required by old migrations.
+    Safe to keep. Harmless if unused.
+    """
     matric = getattr(instance.student, "matric_no", None) or instance.uid
     return f"idcards/{matric}.png"
 
 
 def passport_upload_path(instance, filename):
+    """
+    Legacy function required by old migrations.
+    Safe to keep. Harmless if unused.
+    """
     matric = getattr(instance.student, "matric_no", None) or instance.uid
     return f"passports/{matric}.jpg"
 
 
-# =========================
+# =====================================================
 # MODEL
-# =========================
+# =====================================================
 class IDCard(models.Model):
     student = models.OneToOneField(
         Student,
@@ -28,24 +38,37 @@ class IDCard(models.Model):
 
     uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
-    # Uploaded passport photo
+    # -------------------------------------------------
+    # Passport Photo (Uploaded by student)
+    # -------------------------------------------------
     passport = CloudinaryField(
         "image",
-        folder="passports",   # optional (Cloudinary folder)
+        folder="passports",
         blank=True,
         null=True,
     )
 
-    # Generated ID card image
-    image = CloudinaryField("image", folder="idcards", blank=True, null=True)
+    # -------------------------------------------------
+    # Generated ID Card Image
+    # -------------------------------------------------
+    image = CloudinaryField(
+        "image",
+        folder="idcards",
+        blank=True,
+        null=True,
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    image = CloudinaryField("image", blank=True, null=True)
+    class Meta:
+        indexes = [
+            models.Index(fields=["uid"]),
+            models.Index(fields=["created_at"]),
+        ]
 
-    # =========================
-    # SAFE NAME BUILDER
-    # =========================
+    # -------------------------------------------------
+    # Safe full name builder
+    # -------------------------------------------------
     def get_full_name(self):
         student = self.student
 
@@ -53,17 +76,30 @@ class IDCard(models.Model):
         middle = getattr(student, "middle_name", "") or ""
         last = getattr(student, "last_name", "") or ""
 
-        full_name = " ".join(filter(None, [first, middle, last])).strip()
+        name = " ".join(filter(None, [first, middle, last])).strip()
 
-        if not full_name:
-            full_name = getattr(student, "full_name", None) \
-                        or getattr(student, "name", None) \
-                        or str(student)
+        if not name:
+            name = (
+                getattr(student, "full_name", None)
+                or getattr(student, "name", None)
+                or str(student)
+            )
 
-        return full_name
+        return name
 
-    # =========================
-    # STRING REPRESENTATION
-    # =========================
+    # -------------------------------------------------
+    # Status helpers
+    # -------------------------------------------------
+    @property
+    def has_image(self):
+        return bool(self.image and getattr(self.image, "public_id", None))
+
+    @property
+    def has_passport(self):
+        return bool(self.passport and getattr(self.passport, "public_id", None))
+
+    # -------------------------------------------------
+    # String representation
+    # -------------------------------------------------
     def __str__(self):
         return f"{self.get_full_name()} ID Card"
