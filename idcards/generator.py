@@ -1,9 +1,11 @@
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from django.conf import settings
+from django.core.files.base import ContentFile
+from io import BytesIO
 import os
 import qrcode
-from io import BytesIO
-from django.core.files.base import ContentFile
+
+from applications.models import IDApplication
 
 
 # =========================
@@ -78,29 +80,37 @@ def get_student_details(student):
 
 
 # =========================
-# SAFE PASSPORT LOADER
+# LOAD PASSPORT FROM APPLICATION
 # =========================
-def paste_passport(card, idcard):
+def paste_passport(card, student):
     try:
-        if idcard.passport:
-            with idcard.passport.open("rb") as f:
-                photo = Image.open(f).convert("RGB")
-                photo = photo.resize((220, 260))
-                card.paste(photo, (50, 180))
+        app = IDApplication.objects.filter(student=student).first()
+        if not app or not app.passport:
+            return
+
+        with app.passport.open("rb") as f:
+            photo = Image.open(f).convert("RGB")
+            photo = photo.resize((220, 260))
+            card.paste(photo, (50, 180))
     except Exception:
         pass
 
 
 # =========================
-# MAIN GENERATOR (Cloudinary Safe)
+# MAIN GENERATOR
 # =========================
 def generate_id_card(idcard):
 
-    # Skip regeneration if image already exists
+    # Prevent regeneration loop
     if idcard.image:
         return idcard.image.url
 
     student = idcard.student
+
+    # Must have approved application + passport
+    app = IDApplication.objects.filter(student=student, status="APPROVED").first()
+    if not app or not app.passport:
+        return None
 
     width, height = 1010, 640
     card = Image.new("RGB", (width, height), "white")
@@ -113,7 +123,7 @@ def generate_id_card(idcard):
     draw.text((30, 30), "EKSU STUDENT ID CARD", font=font_big, fill="white")
 
     # ================= PASSPORT =================
-    paste_passport(card, idcard)
+    paste_passport(card, student)
 
     # ================= STUDENT DATA =================
     full_name, matric, dept, level, phone = get_student_details(student)
@@ -139,17 +149,13 @@ def generate_id_card(idcard):
     # ================= WATERMARK =================
     card = apply_logo_watermark(card)
 
-    # ================= SAVE TO CLOUDINARY =================
+    # ================= SAVE =================
     buffer = BytesIO()
     card.save(buffer, format="PNG")
     buffer.seek(0)
 
     filename = f"idcards/{matric or idcard.uid}.png"
 
-    idcard.image.save(
-        filename,
-        ContentFile(buffer.read()),
-        save=True,
-    )
+    idcard.image.save(filename, ContentFile(buffer.read()), save=True)
 
     return idcard.image.url
