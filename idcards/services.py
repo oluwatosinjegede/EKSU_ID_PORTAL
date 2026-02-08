@@ -6,14 +6,23 @@ from idcards.generator import generate_id_card as build_id_card
 from applications.models import IDApplication
 
 
+# =====================================================
+# MAIN SERVICE — CREATE / GENERATE ID SAFELY
+# =====================================================
 def generate_id_card(application: IDApplication) -> IDCard:
     """
-    Create or reuse IDCard and generate Cloudinary image safely.
-    No filesystem dependency. Production-safe.
+    Create or reuse IDCard and generate image safely.
+    Fully idempotent, Cloudinary-safe, race-condition safe.
     """
 
     if not application or not application.student:
         raise ValueError("Invalid application or missing student")
+
+    if application.status != IDApplication.STATUS_APPROVED:
+        raise ValueError("Cannot generate ID: application not approved")
+
+    if not application.passport:
+        raise ValueError("Cannot generate ID: passport missing")
 
     student = application.student
 
@@ -25,57 +34,72 @@ def generate_id_card(application: IDApplication) -> IDCard:
         id_card, _ = IDCard.objects.get_or_create(student=student)
 
         # -------------------------------------------------
-        # Copy passport from Application -> IDCard (Cloudinary-safe)
+        # Ensure passport exists on IDCard
         # -------------------------------------------------
-        if not id_card.passport and getattr(application, "passport", None):
+        if not id_card.passport and application.passport:
             try:
-                # Directly copy file via Django storage (no HTTP download)
-                src_file = application.passport.file
-                filename = f"{student.matric_number}_passport.jpg"
+                src = application.passport.file
+                src.seek(0)
+
+                filename = f"{student.matric_number or id_card.uid}_passport.jpg"
 
                 id_card.passport.save(
                     filename,
-                    ContentFile(src_file.read()),
+                    ContentFile(src.read()),
                     save=False,
                 )
                 id_card.save(update_fields=["passport"])
 
             except Exception:
-                # Never crash if passport copy fails
+                # Do not crash if Cloudinary copy fails
                 pass
 
         # -------------------------------------------------
-        # If image already exists ? reuse (skip regeneration)
+        # If image already exists ? return (idempotent)
         # -------------------------------------------------
-        if id_card.image:
+        if id_card.image and getattr(id_card.image, "name", None):
             return id_card
 
         # -------------------------------------------------
-        # Generate ID image (Cloudinary backend handles storage)
+        # Generate ID image
         # -------------------------------------------------
         try:
             build_id_card(id_card)
         except Exception as e:
-            raise RuntimeError(f"ID card generation failed: {e}")
+            raise RuntimeError(f"ID generation failed: {e}")
 
         id_card.refresh_from_db()
         return id_card
 
 
-# -------------------------------------------------
-# Compatibility helper (kept for old calls)
-# -------------------------------------------------
+# =====================================================
+# SAFE ENSURE (REBUILD IF MISSING)
+# =====================================================
 def ensure_id_card_exists(id_card: IDCard):
     """
-    Rebuild ID image if missing (Cloudinary-safe).
-    No filesystem check needed.
+    Ensure ID image exists. Rebuild if missing.
+    Safe for admin, signals, background jobs.
     """
 
     if not id_card:
-        return
+        return None
 
-    if not id_card.image:
-        try:
-            build_id_card(id_card)
-        except Exception:
-            pass
+    if id_card.image and getattr(id_card.image, "name", None):
+        return id_card.image.url
+
+    # Must have approved application
+    application = IDApplication.objects.filter(
+        student=id_card.student,
+        status=IDApplication.STATUS_APPROVED,
+    ).first()
+
+    if not application or not application.passport:
+        return None
+
+    try:
+        build_id_card(id_card)
+        id_card.refresh_from_db()
+    except Exception:
+        return None
+
+    return getattr(id_card.image, "url", None)

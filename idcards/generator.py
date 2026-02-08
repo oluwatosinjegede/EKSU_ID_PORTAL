@@ -46,7 +46,6 @@ def apply_logo_watermark(card):
 
     try:
         logo = Image.open(logo_path).convert("RGBA")
-
         w, h = card.size
         logo = logo.resize((int(w * 0.35), int(h * 0.35)))
 
@@ -80,52 +79,60 @@ def get_student_details(student):
 
 
 # =========================
-# LOAD PASSPORT FROM APPLICATION
+# LOAD PASSPORT FROM APPROVED APPLICATION
 # =========================
-def paste_passport(card, student):
-    try:
-        app = IDApplication.objects.filter(student=student).first()
-        if not app or not app.passport:
-            return
+def load_passport(student):
+    app = IDApplication.objects.filter(
+        student=student,
+        status=IDApplication.STATUS_APPROVED
+    ).first()
 
-        with app.passport.open("rb") as f:
-            photo = Image.open(f).convert("RGB")
-            photo = photo.resize((220, 260))
-            card.paste(photo, (50, 180))
-    except Exception:
-        pass
-
-
-# =========================
-# MAIN GENERATOR
-# =========================
-def generate_id_card(idcard):
-
-    # Prevent regeneration loop
-    if idcard.image:
-        return idcard.image.url
-
-    student = idcard.student
-
-    # Must have approved application + passport
-    app = IDApplication.objects.filter(student=student, status="APPROVED").first()
     if not app or not app.passport:
         return None
 
+    try:
+        with app.passport.open("rb") as f:
+            photo = Image.open(f).convert("RGB")
+            return photo.resize((220, 260))
+    except Exception:
+        return None
+
+
+# =========================
+# MAIN GENERATOR (SAFE + IDEMPOTENT)
+# =========================
+def generate_id_card(idcard):
+
+    # ---------- HARD GUARD ----------
+    if not idcard:
+        return None
+
+    if hasattr(idcard, "image") and idcard.image:
+        return idcard.image.url
+
+    student = getattr(idcard, "student", None)
+    if not student:
+        return None
+
+    passport = load_passport(student)
+    if not passport:
+        return None
+
+    # ---------- CREATE CARD ----------
     width, height = 1010, 640
     card = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(card)
 
     font_big, font_mid, font_small = load_fonts()
 
-    # ================= HEADER =================
+    # Header
     draw.rectangle((0, 0, width, 120), fill=(0, 102, 0))
     draw.text((30, 30), "EKSU STUDENT ID CARD", font=font_big, fill="white")
 
-    # ================= PASSPORT =================
-    paste_passport(card, student)
+    # Passport
+    card.paste(passport, (50, 180))
 
-    # ================= STUDENT DATA =================
+    # Student data
     full_name, matric, dept, level, phone = get_student_details(student)
 
     draw.text((320, 200), f"Name: {full_name}", font=font_mid, fill="black")
@@ -134,28 +141,36 @@ def generate_id_card(idcard):
     draw.text((320, 380), f"Level: {level}", font=font_mid, fill="black")
     draw.text((320, 440), f"Phone: {phone}", font=font_mid, fill="black")
 
-    # ================= QR CODE =================
-    verify_url = f"{settings.SITE_URL}/verify/{idcard.uid}/"
+    # QR Code
     try:
+        verify_url = f"{settings.SITE_URL}/verify/{idcard.uid}/"
         qr_img = create_qr_code(verify_url).resize((160, 160))
         card.paste(qr_img, (820, 380))
     except Exception:
         pass
 
-    # ================= FOOTER =================
+    # Footer
     draw.rectangle((0, height - 80, width, height), fill=(0, 102, 0))
     draw.text((40, height - 60), "Property of EKSU", font=font_small, fill="white")
 
-    # ================= WATERMARK =================
+    # Watermark
     card = apply_logo_watermark(card)
 
-    # ================= SAVE =================
-    buffer = BytesIO()
-    card.save(buffer, format="PNG")
-    buffer.seek(0)
+    # ---------- SAVE TO CLOUDINARY ----------
+    try:
+        buffer = BytesIO()
+        card.save(buffer, format="PNG")
+        buffer.seek(0)
 
-    filename = f"idcards/{matric or idcard.uid}.png"
+        filename = f"idcards/{matric or idcard.uid}.png"
 
-    idcard.image.save(filename, ContentFile(buffer.read()), save=True)
+        idcard.image.save(
+            filename,
+            ContentFile(buffer.read()),
+            save=True,
+        )
 
-    return idcard.image.url
+        return idcard.image.url
+
+    except Exception:
+        return None
