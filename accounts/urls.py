@@ -29,5 +29,5 @@ urlpatterns = [
     # STUDENT
     # =========================
     path("student/dashboard/", student_dashboard, name="student_dashboard"),
-    #path("student/apply/", apply_id_view, name="apply_id"),
+    path("student/apply/", apply_id_view, name="apply_id"),
 ]
