@@ -8,9 +8,9 @@ import qrcode
 from applications.models import IDApplication
 
 
-# =========================
+# =====================================================
 # SAFE FONT LOADER
-# =========================
+# =====================================================
 def load_fonts():
     font_path = os.path.join(settings.BASE_DIR, "static/fonts/DejaVuSans-Bold.ttf")
 
@@ -25,9 +25,9 @@ def load_fonts():
         return default, default, default
 
 
-# =========================
+# =====================================================
 # QR CODE
-# =========================
+# =====================================================
 def create_qr_code(data):
     qr = qrcode.QRCode(box_size=6, border=2)
     qr.add_data(data)
@@ -35,9 +35,9 @@ def create_qr_code(data):
     return qr.make_image(fill_color="black", back_color="white").convert("RGB")
 
 
-# =========================
+# =====================================================
 # WATERMARK
-# =========================
+# =====================================================
 def apply_logo_watermark(card):
     logo_path = os.path.join(settings.BASE_DIR, "static/images/university_logo.png")
 
@@ -60,9 +60,9 @@ def apply_logo_watermark(card):
     return card
 
 
-# =========================
+# =====================================================
 # SAFE STUDENT DATA
-# =========================
+# =====================================================
 def get_student_details(student):
     first = str(getattr(student, "first_name", "") or "").strip()
     middle = str(getattr(student, "middle_name", "") or "").strip()
@@ -78,9 +78,9 @@ def get_student_details(student):
     return full_name, matric, department, level, phone
 
 
-# =========================
-# LOAD PASSPORT FROM APPROVED APPLICATION
-# =========================
+# =====================================================
+# SAFE PASSPORT LOADER (NO EMPTY READ, NO POINTER BUG)
+# =====================================================
 def load_passport(student):
     app = IDApplication.objects.filter(
         student=student,
@@ -92,33 +92,43 @@ def load_passport(student):
 
     try:
         with app.passport.open("rb") as f:
-            photo = Image.open(f).convert("RGB")
-            return photo.resize((220, 260))
-    except Exception:
+            data = f.read()
+
+        if not data:
+            print("PASSPORT EMPTY")
+            return None
+
+        img = Image.open(BytesIO(data)).convert("RGB")
+        return img.resize((220, 260))
+
+    except Exception as e:
+        print("PASSPORT LOAD FAILED:", str(e))
         return None
 
 
-# =========================
-# MAIN GENERATOR (SAFE + IDEMPOTENT)
-# =========================
+# =====================================================
+# MAIN GENERATOR (ULTRA SAFE + IDEMPOTENT)
+# =====================================================
 def generate_id_card(idcard):
 
-    # ---------- HARD GUARD ----------
+    # ---------- HARD GUARDS ----------
     if not idcard:
         return None
 
-    if hasattr(idcard, "image") and idcard.image:
+    if idcard.image and getattr(idcard.image, "name", None):
         return idcard.image.url
 
     student = getattr(idcard, "student", None)
     if not student:
+        print("NO STUDENT ON IDCARD")
         return None
 
     passport = load_passport(student)
     if not passport:
+        print("PASSPORT NOT AVAILABLE")
         return None
 
-    # ---------- CREATE CARD ----------
+    # ---------- CREATE IMAGE ----------
     width, height = 1010, 640
     card = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(card)
@@ -146,8 +156,8 @@ def generate_id_card(idcard):
         verify_url = f"{settings.SITE_URL}/verify/{idcard.uid}/"
         qr_img = create_qr_code(verify_url).resize((160, 160))
         card.paste(qr_img, (820, 380))
-    except Exception:
-        pass
+    except Exception as e:
+        print("QR FAILED:", str(e))
 
     # Footer
     draw.rectangle((0, height - 80, width, height), fill=(0, 102, 0))
@@ -156,21 +166,27 @@ def generate_id_card(idcard):
     # Watermark
     card = apply_logo_watermark(card)
 
-    # ---------- SAVE TO CLOUDINARY ----------
+    # =====================================================
+    # SAVE TO CLOUDINARY (HARDENED)
+    # =====================================================
     try:
         buffer = BytesIO()
         card.save(buffer, format="PNG")
         buffer.seek(0)
 
+        content = ContentFile(buffer.getvalue())
+
+        if not content.size:
+            raise ValueError("Generated image empty")
+
         filename = f"idcards/{matric or idcard.uid}.png"
 
-        idcard.image.save(
-            filename,
-            ContentFile(buffer.read()),
-            save=True,
-        )
+        idcard.image.save(filename, content, save=True)
+        idcard.refresh_from_db()
 
+        print("ID GENERATED:", filename)
         return idcard.image.url
 
-    except Exception:
+    except Exception as e:
+        print("ID SAVE FAILED:", str(e))
         return None
