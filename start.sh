@@ -5,6 +5,9 @@ echo "-------------------------------------"
 echo "Starting Django container bootstrap"
 echo "-------------------------------------"
 
+echo "runing Django shell command"
+python manage.py selfheal_ids
+
 # -------------------------------------------------
 # 1. Run Migrations
 # -------------------------------------------------
