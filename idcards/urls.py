@@ -36,10 +36,9 @@ urlpatterns = [
         name="view_my_id",
     ),
 
-    path(
-        "my-id/",
-        view_id_card,
-        name="view_id_stream",
-    ),
+
+    # Failover streaming
+    path("stream/<uuid:uid>/", view_id_card, name="view_id_stream"),
+    path("stream/<uuid:uid>/download/", download_id_stream, name="download_id_stream"),
 ]
 
