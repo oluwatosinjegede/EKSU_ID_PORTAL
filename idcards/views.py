@@ -7,36 +7,59 @@ from .generator import generate_id_card
 
 
 # =====================================================
-# VERIFY ID (Public verification via QR)
-# Supports Cloudinary + Failover Stream
+# INTERNAL HELPER
+# Handles Cloudinary + Failover consistently
 # =====================================================
-def verify_id(request, uid):
-    id_card = get_object_or_404(IDCard, uid=uid)
+def _serve_id_image(id_card, download=False):
+    """
+    Unified image serving engine.
 
-    # Ensure image exists (self-heal)
-    ensure_id_card_exists(id_card)
-    id_card.refresh_from_db()
+    Priority:
+    1. Cloudinary image (if valid)
+    2. Failover generated image (memory)
+    """
 
     # -------------------------------
     # CLOUDINARY MODE
     # -------------------------------
     if id_card.image and getattr(id_card.image, "url", None):
+        if download:
+            return redirect(f"{id_card.image.url}?fl_attachment")
         return redirect(id_card.image.url)
 
     # -------------------------------
-    # FAILOVER STREAM MODE
+    # FAILOVER MODE (Generate in-memory)
     # -------------------------------
     result = generate_id_card(id_card)
 
     if isinstance(result, (bytes, bytearray)):
-        return HttpResponse(result, content_type="image/png")
+        response = HttpResponse(result, content_type="image/png")
+
+        if download:
+            response["Content-Disposition"] = f'attachment; filename="ID-{id_card.uid}.png"'
+        else:
+            response["Content-Disposition"] = "inline; filename=id_card.png"
+
+        return response
 
     raise Http404("ID Card unavailable")
 
 
 # =====================================================
-# DOWNLOAD ID (Force download)
-# Supports Cloudinary + Failover Stream
+# VERIFY ID (Public via QR)
+# =====================================================
+def verify_id(request, uid):
+    id_card = get_object_or_404(IDCard, uid=uid)
+
+    # Self-heal if broken
+    ensure_id_card_exists(id_card)
+    id_card.refresh_from_db()
+
+    return _serve_id_image(id_card, download=False)
+
+
+# =====================================================
+# DOWNLOAD ID (Cloudinary + Failover)
 # =====================================================
 def download_id(request, uid):
     id_card = get_object_or_404(IDCard, uid=uid)
@@ -44,55 +67,42 @@ def download_id(request, uid):
     ensure_id_card_exists(id_card)
     id_card.refresh_from_db()
 
-    # -------------------------------
-    # CLOUDINARY MODE
-    # -------------------------------
-    if id_card.image and getattr(id_card.image, "url", None):
-        return redirect(f"{id_card.image.url}?fl_attachment")
-
-    # -------------------------------
-    # FAILOVER STREAM MODE
-    # -------------------------------
-    result = generate_id_card(id_card)
-
-    if isinstance(result, (bytes, bytearray)):
-        response = HttpResponse(result, content_type="image/png")
-        response["Content-Disposition"] = f'attachment; filename="ID-{uid}.png"'
-        return response
-
-    raise Http404("ID not generated")
+    return _serve_id_image(id_card, download=True)
 
 
 # =====================================================
-# STUDENT VIEW ID (Inline display)
-# Supports Cloudinary + Failover
+# STREAM VIEW (Explicit Failover Endpoint)
+# Used by dashboard image preview
 # =====================================================
-def view_id_card(request):
-    if not hasattr(request.user, "student"):
-        raise Http404("Student not found")
+@login_required
+def view_id_card(request, uid=None):
+    """
+    Supports:
+    - Logged-in student (/my-id/)
+    - Stream by UID (/stream/<uid>/)
+    """
 
-    id_card = getattr(request.user.student, "id_card", None)
+    if uid:
+        id_card = get_object_or_404(IDCard, uid=uid)
+    else:
+        student = getattr(request.user, "student", None)
+        if not student or not hasattr(student, "id_card"):
+            raise Http404("No ID card")
 
-    if not id_card:
-        raise Http404("No ID card")
+        id_card = student.id_card
 
     ensure_id_card_exists(id_card)
     id_card.refresh_from_db()
 
-    # -------------------------------
-    # CLOUDINARY MODE
-    # -------------------------------
-    if id_card.image and getattr(id_card.image, "url", None):
-        return redirect(id_card.image.url)
+    return _serve_id_image(id_card, download=False)
 
-    # -------------------------------
-    # FAILOVER STREAM MODE
-    # -------------------------------
-    result = generate_id_card(id_card)
+# =====================================================
+# STREAM DOWNLOAD (Explicit Failover Download)
+# =====================================================
+def download_id_stream(request, uid):
+    id_card = get_object_or_404(IDCard, uid=uid)
 
-    if isinstance(result, (bytes, bytearray)):
-        response = HttpResponse(result, content_type="image/png")
-        response["Content-Disposition"] = "inline; filename=id_card.png"
-        return response
+    ensure_id_card_exists(id_card)
+    id_card.refresh_from_db()
 
-    raise Http404("ID generation failed")
+    return _serve_id_image(id_card, download=True)

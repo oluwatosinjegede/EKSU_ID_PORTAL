@@ -1,5 +1,11 @@
 from django.urls import path
-from .views import verify_id, download_id, view_id_card
+
+from .views import (
+    verify_id,
+    download_id,
+    view_id_card,
+    download_id_stream,
+)
 
 app_name = "idcards"
 
@@ -8,7 +14,7 @@ urlpatterns = [
 
     # =====================================================
     # PUBLIC — QR CODE VERIFICATION
-    # Opens ID in browser (Cloudinary OR failover stream)
+    # Opens ID in browser (Cloudinary OR Failover)
     # =====================================================
     path(
         "verify/<uuid:uid>/",
@@ -18,7 +24,6 @@ urlpatterns = [
 
     # =====================================================
     # PUBLIC — FORCE DOWNLOAD
-    # Forces download (Cloudinary OR failover stream)
     # =====================================================
     path(
         "verify/<uuid:uid>/download/",
@@ -28,17 +33,27 @@ urlpatterns = [
 
     # =====================================================
     # PRIVATE — STUDENT VIEW OWN ID
-    # Inline display with failover
+    # Uses logged-in student (no UID required)
     # =====================================================
     path(
         "my-id/",
-        view_id_card,
+        view_id_card,   # view must support logged-in user mode
         name="view_my_id",
     ),
 
+    # =====================================================
+    # FAILOVER STREAM ROUTES
+    # Used by dashboard template
+    # =====================================================
+    path(
+        "stream/<uuid:uid>/",
+        view_id_card,
+        name="view_id_stream",
+    ),
 
-    # Failover streaming
-    path("stream/<uuid:uid>/", view_id_card, name="view_id_stream"),
-    path("stream/<uuid:uid>/download/", download_id_stream, name="download_id_stream"),
+    path(
+        "stream/<uuid:uid>/download/",
+        download_id_stream,
+        name="download_id_stream",
+    ),
 ]
-
