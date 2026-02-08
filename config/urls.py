@@ -19,6 +19,16 @@ urlpatterns = [
     ),
 
     # -------------------------------------------------
+    # APPLICATIONS (Namespaced)
+    # -------------------------------------------------
+
+    path(
+        "",
+        include(("applications.urls", "applications"), namespace="applications"),
+    ),
+
+
+    # -------------------------------------------------
     # ID VERIFICATION (Namespaced safe)
     # -------------------------------------------------
     path(
