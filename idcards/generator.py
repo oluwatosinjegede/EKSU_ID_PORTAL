@@ -167,7 +167,7 @@ def generate_id_card(idcard):
     card = apply_logo_watermark(card)
 
     # -------------------------------------------------
-    # SAVE TO CLOUDINARY (FINAL — REAL FIX)
+    # SAVE TO CLOUDINARY
     # -------------------------------------------------
     try:
         buffer = BytesIO()
@@ -176,7 +176,6 @@ def generate_id_card(idcard):
 
         filename = f"{matric or idcard.uid}.png"
 
-        # MUST use CloudinaryField .save()
         idcard.image.save(
             filename,
             ContentFile(buffer.read()),
@@ -189,7 +188,7 @@ def generate_id_card(idcard):
             print("GENERATOR: SAVE OK", idcard.image.url)
             return idcard.image.url
 
-        print("GENERATOR: SAVE FAILED — EMPTY FIELD")
+        print("GENERATOR: SAVE FAILED - EMPTY FIELD")
         return None
 
     except Exception as e:
