@@ -170,7 +170,7 @@ def generate_id_card(idcard):
     # SAVE TO CLOUDINARY (FINAL FIX — NEVER FAIL)
     # -------------------------------------------------
     # -------------------------------------------------
-    # SAVE TO CLOUDINARY (TRUE FINAL FIX)
+    # SAVE TO CLOUDINARY (FINAL PERMANENT FIX)
     # -------------------------------------------------
     try:
         buffer = BytesIO()
@@ -179,11 +179,15 @@ def generate_id_card(idcard):
 
         filename = f"{matric or idcard.uid}.png"
 
-        # Ensure field instance exists (CRITICAL)
-        if idcard.image is None:
-            idcard.image = ""
+        # DO NOT assign idcard.image manually
+        field_file = getattr(idcard, "image", None)
 
-        idcard.image.save(
+        if not field_file:
+            print("GENERATOR: FIELD INIT")
+            idcard.save(update_fields=[])   # forces Django to attach FieldFile
+            field_file = idcard.image
+
+        field_file.save(
             filename,
             ContentFile(buffer.read()),
             save=True

@@ -2,6 +2,17 @@ from django.core.management.base import BaseCommand
 from idcards.models import IDCard
 from idcards.services import ensure_id_card_exists
 
+from idcards.models import IDCard
+
+bad = IDCard.objects.filter(image__isnull=False)
+
+for obj in bad:
+    if isinstance(obj.image, str):
+        obj.image = None
+        obj.save(update_fields=["image"])
+
+print("CLEANED")
+
 
 class Command(BaseCommand):
     help = "Self-heal and rebuild all missing ID cards"
@@ -20,3 +31,5 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"Done. Rebuilt={rebuilt}, Skipped={skipped}"
         ))
+
+
