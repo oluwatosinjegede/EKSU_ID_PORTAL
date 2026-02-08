@@ -35,4 +35,11 @@ urlpatterns = [
         view_id_card,
         name="view_my_id",
     ),
+
+    path(
+        "my-id/",
+        view_id_card,
+        name="view_id_stream",
+    ),
 ]
+
