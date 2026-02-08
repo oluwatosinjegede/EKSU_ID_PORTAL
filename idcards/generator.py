@@ -1,3 +1,4 @@
+import requests
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -81,6 +82,7 @@ def get_student_details(student):
 # =====================================================
 # SAFE PASSPORT LOADER (NO EMPTY READ, NO POINTER BUG)
 # =====================================================
+
 def load_passport(student):
     app = IDApplication.objects.filter(
         student=student,
@@ -88,23 +90,23 @@ def load_passport(student):
     ).first()
 
     if not app or not app.passport:
+        print("GENERATOR: NO PASSPORT IN APPLICATION")
         return None
 
     try:
-        with app.passport.open("rb") as f:
-            data = f.read()
+        url = app.passport.url   # Cloudinary URL
+        response = requests.get(url, timeout=15)
 
-        if not data:
-            print("PASSPORT EMPTY")
+        if response.status_code != 200:
+            print("GENERATOR: PASSPORT DOWNLOAD FAILED")
             return None
 
-        img = Image.open(BytesIO(data)).convert("RGB")
-        return img.resize((220, 260))
+        photo = Image.open(BytesIO(response.content)).convert("RGB")
+        return photo.resize((220, 260))
 
     except Exception as e:
-        print("PASSPORT LOAD FAILED:", str(e))
+        print("GENERATOR: PASSPORT LOAD FAILED:", str(e))
         return None
-
 
 # =====================================================
 # MAIN GENERATOR (ULTRA SAFE + IDEMPOTENT)
