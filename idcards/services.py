@@ -86,7 +86,7 @@ def generate_id_card(application: IDApplication) -> IDCard:
         if id_card.image:
             print("ID SERVICE: SUCCESS", id_card.image.url)
         else:
-            print("ID SERVICE: FAILED — NO IMAGE")
+            print("ID SERVICE: FAILED - NO IMAGE")
 
         id_card.refresh_from_db()
         return id_card
