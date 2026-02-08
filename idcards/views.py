@@ -1,66 +1,98 @@
 from django.http import HttpResponse, Http404
 from django.shortcuts import get_object_or_404, redirect
+
 from .models import IDCard
 from .services import ensure_id_card_exists
+from .generator import generate_id_card
 
 
-
+# =====================================================
+# VERIFY ID (Public verification via QR)
+# Supports Cloudinary + Failover Stream
+# =====================================================
 def verify_id(request, uid):
     id_card = get_object_or_404(IDCard, uid=uid)
 
-    # Ensure ID exists (rebuild if missing)
+    # Ensure image exists (self-heal)
     ensure_id_card_exists(id_card)
+    id_card.refresh_from_db()
 
-    # If still no image ? invalid ID
-    if not id_card.image:
-        return HttpResponse("ID Card not generated", status=404)
+    # -------------------------------
+    # CLOUDINARY MODE
+    # -------------------------------
+    if id_card.image and getattr(id_card.image, "url", None):
+        return redirect(id_card.image.url)
 
-    try:
-        image_url = id_card.image.url
-    except Exception:
-        raise Http404("ID image unavailable")
+    # -------------------------------
+    # FAILOVER STREAM MODE
+    # -------------------------------
+    result = generate_id_card(id_card)
 
-    # Redirect browser to Cloudinary-hosted image
-    return redirect(image_url)
+    if isinstance(result, (bytes, bytearray)):
+        return HttpResponse(result, content_type="image/png")
+
+    raise Http404("ID Card unavailable")
 
 
-
+# =====================================================
+# DOWNLOAD ID (Force download)
+# Supports Cloudinary + Failover Stream
+# =====================================================
 def download_id(request, uid):
     id_card = get_object_or_404(IDCard, uid=uid)
 
-    # Ensure image exists
     ensure_id_card_exists(id_card)
+    id_card.refresh_from_db()
 
-    if not id_card.image:
-        raise Http404("ID not generated")
+    # -------------------------------
+    # CLOUDINARY MODE
+    # -------------------------------
+    if id_card.image and getattr(id_card.image, "url", None):
+        return redirect(f"{id_card.image.url}?fl_attachment")
 
-    try:
-        image_url = id_card.image.url
-    except Exception:
-        raise Http404("Image unavailable")
+    # -------------------------------
+    # FAILOVER STREAM MODE
+    # -------------------------------
+    result = generate_id_card(id_card)
 
-    # Force download from Cloudinary
-    return redirect(f"{image_url}?fl_attachment")
+    if isinstance(result, (bytes, bytearray)):
+        response = HttpResponse(result, content_type="image/png")
+        response["Content-Disposition"] = f'attachment; filename="ID-{uid}.png"'
+        return response
+
+    raise Http404("ID not generated")
 
 
+# =====================================================
+# STUDENT VIEW ID (Inline display)
+# Supports Cloudinary + Failover
+# =====================================================
 def view_id_card(request):
-    student = request.user.student
-    idcard = getattr(student, "id_card", None)
+    if not hasattr(request.user, "student"):
+        raise Http404("Student not found")
 
-    if not idcard:
-        return HttpResponse("No ID card", status=404)
+    id_card = getattr(request.user.student, "id_card", None)
 
-    result = generate_id_card(idcard)
+    if not id_card:
+        raise Http404("No ID card")
 
-    if not result:
-        return HttpResponse("ID generation failed", status=500)
+    ensure_id_card_exists(id_card)
+    id_card.refresh_from_db()
 
-    # If Cloudinary saved ? result is URL
-    if isinstance(result, str):
-        return redirect(result)
+    # -------------------------------
+    # CLOUDINARY MODE
+    # -------------------------------
+    if id_card.image and getattr(id_card.image, "url", None):
+        return redirect(id_card.image.url)
 
-    # If failover ? result is raw image bytes
-    response = HttpResponse(result, content_type="image/png")
-    response["Content-Disposition"] = "inline; filename=id_card.png"
-    return response
+    # -------------------------------
+    # FAILOVER STREAM MODE
+    # -------------------------------
+    result = generate_id_card(id_card)
 
+    if isinstance(result, (bytes, bytearray)):
+        response = HttpResponse(result, content_type="image/png")
+        response["Content-Disposition"] = "inline; filename=id_card.png"
+        return response
+
+    raise Http404("ID generation failed")

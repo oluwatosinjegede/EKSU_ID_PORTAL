@@ -4,50 +4,57 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
 
-from idcards.views import verify_id
-
 
 urlpatterns = [
+
+    # =====================================================
+    # ADMIN
+    # =====================================================
     path("admin/", admin.site.urls),
 
-    # -------------------------------------------------
-    # ACCOUNTS (Namespaced)
-    # -------------------------------------------------
+    # =====================================================
+    # ACCOUNTS (ROOT)
+    # =====================================================
     path(
         "",
         include(("accounts.urls", "accounts"), namespace="accounts"),
     ),
 
-    # -------------------------------------------------
-    # APPLICATIONS (Namespaced)
-    # -------------------------------------------------
-
+    # =====================================================
+    # APPLICATIONS
+    # =====================================================
     path(
         "",
         include(("applications.urls", "applications"), namespace="applications"),
     ),
 
-
-    # -------------------------------------------------
-    # ID VERIFICATION (Namespaced safe)
-    # -------------------------------------------------
+    # =====================================================
+    # IDCARDS (FAILOVER READY)
+    # Handles:
+    #   /idcards/verify/<uid>/
+    #   /idcards/verify/<uid>/download/
+    #   /idcards/my-id/
+    # =====================================================
     path(
-        "verify/<uuid:uid>/",
-        verify_id,
-        name="verify_id",   # use idcards:verify_id in templates if needed
-    ),
-
-    # -------------------------------------------------
-    # IDCARDS (Namespaced)
-    # -------------------------------------------------
-    path(
-        "",
+        "idcards/",
         include(("idcards.urls", "idcards"), namespace="idcards"),
     ),
 
-    # -------------------------------------------------
+    # =====================================================
+    # GLOBAL VERIFY SHORT URL (QR CODE SAFE)
+    # Allows QR to work without /idcards/ prefix
+    # =====================================================
+    path(
+        "verify/<uuid:uid>/",
+        RedirectView.as_view(
+            pattern_name="idcards:verify_id",
+            permanent=False,
+        ),
+    ),
+
+    # =====================================================
     # FAVICON
-    # -------------------------------------------------
+    # =====================================================
     path(
         "favicon.ico",
         RedirectView.as_view(
@@ -57,7 +64,12 @@ urlpatterns = [
     ),
 ]
 
-# -------------------------------------------------
-# MEDIA FILES (Development)
-# -------------------------------------------------
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# =====================================================
+# MEDIA FILES (DEV ONLY — ignored in production)
+# =====================================================
+if settings.DEBUG:
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT
+    )

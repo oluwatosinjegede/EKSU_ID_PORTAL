@@ -7,13 +7,9 @@ from applications.models import IDApplication
 
 
 # =====================================================
-# MAIN SERVICE — CREATE / GENERATE ID (CLOUDINARY SAFE)
+# MAIN SERVICE — CREATE / GENERATE ID (CLOUDINARY + FAILOVER SAFE)
 # =====================================================
 def generate_id_card(application: IDApplication):
-    """
-    Create/reuse IDCard and generate image.
-    Cloudinary-safe, idempotent, race-safe, production-safe.
-    """
 
     print("ID SERVICE: START")
 
@@ -37,9 +33,7 @@ def generate_id_card(application: IDApplication):
     try:
         with transaction.atomic():
 
-            # -------------------------------------------------
-            # Lock row (prevents race / double generation)
-            # -------------------------------------------------
+            # Lock row to prevent race
             id_card, _ = (
                 IDCard.objects.select_for_update()
                 .get_or_create(student=student)
@@ -48,27 +42,35 @@ def generate_id_card(application: IDApplication):
             print("ID SERVICE: IDCARD OK", id_card.id)
 
             # -------------------------------------------------
-            # IDEMPOTENT — Skip if already generated
+            # IDEMPOTENT — Already generated?
             # -------------------------------------------------
-            if id_card.image and getattr(id_card.image, "name", None):
-                print("ID SERVICE: IMAGE EXISTS")
+            if id_card.image and getattr(id_card.image, "public_id", None):
+                print("ID SERVICE: IMAGE EXISTS (CLOUDINARY)")
                 return id_card
 
             # -------------------------------------------------
             # GENERATE IMAGE
-            # (passport is read from Application inside generator)
             # -------------------------------------------------
             print("ID SERVICE: GENERATING IMAGE")
-            build_id_card(id_card)
+            result = build_id_card(id_card)
 
-            # Refresh after generator
             id_card.refresh_from_db()
 
-            if id_card.image and getattr(id_card.image, "name", None):
-                print("ID SERVICE: SUCCESS", id_card.image.url)
+            # ---------------------------
+            # CLOUDINARY SUCCESS
+            # ---------------------------
+            if id_card.image and getattr(id_card.image, "public_id", None):
+                print("ID SERVICE: GENERATED (CLOUDINARY)", id_card.image.url)
                 return id_card
 
-            print("ID SERVICE: FAILED - NO IMAGE")
+            # ---------------------------
+            # FAILOVER SUCCESS (MEMORY IMAGE)
+            # ---------------------------
+            if isinstance(result, (bytes, bytearray)):
+                print("ID SERVICE: GENERATED (FAILOVER MODE)")
+                return id_card
+
+            print("ID SERVICE: FAILED - GENERATOR RETURNED NONE")
             return None
 
     except Exception as e:
@@ -80,25 +82,18 @@ def generate_id_card(application: IDApplication):
 # SELF-HEAL ENGINE — REBUILD IF BROKEN
 # =====================================================
 def ensure_id_card_exists(id_card):
-    """
-    Fully self-healing ID repair engine.
-
-    Repairs automatically:
-    - Missing image
-    - Broken image
-    - Late approval
-    - Generator failure recovery
-    """
 
     if not id_card:
         return None
 
-    # Already generated ? return fast
-    if id_card.image and getattr(id_card.image, "name", None):
+    # -------------------------------------------------
+    # Already valid Cloudinary image?
+    # -------------------------------------------------
+    if id_card.image and getattr(id_card.image, "public_id", None):
         return id_card.image.url
 
     # -------------------------------------------------
-    # Locate approved application
+    # Find approved application
     # -------------------------------------------------
     application = (
         IDApplication.objects
@@ -119,26 +114,32 @@ def ensure_id_card_exists(id_card):
 
             print("ID HEAL: REBUILD START")
 
-            # Lock row to avoid concurrent rebuild
             id_card = (
                 IDCard.objects.select_for_update()
                 .get(pk=id_card.pk)
             )
 
-            build_id_card(id_card)
+            result = build_id_card(id_card)
 
             id_card.refresh_from_db()
 
-            if id_card.image and getattr(id_card.image, "name", None):
-                print("ID HEAL: SUCCESS")
+            # ---------------------------
+            # CLOUDINARY SUCCESS
+            # ---------------------------
+            if id_card.image and getattr(id_card.image, "public_id", None):
+                print("ID HEAL: SUCCESS (CLOUDINARY)")
                 return id_card.image.url
 
-            print("ID HEAL: FAILED - NO IMAGE")
+            # ---------------------------
+            # FAILOVER SUCCESS
+            # ---------------------------
+            if isinstance(result, (bytes, bytearray)):
+                print("ID HEAL: SUCCESS (FAILOVER MODE)")
+                return None  # memory image shown via view, not URL
+
+            print("ID HEAL: FAILED - GENERATOR RETURNED NONE")
             return None
 
     except Exception as e:
         print("ID HEAL ERROR:", str(e))
         return None
-
-    if not idcard.image:
-        generate_id_card(idcard)
