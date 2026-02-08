@@ -5,6 +5,7 @@ from idcards.models import IDCard
 from idcards.generator import generate_id_card as build_id_card
 from applications.models import IDApplication
 
+
 # =====================================================
 # MAIN SERVICE — CREATE / GENERATE ID SAFELY
 # =====================================================
@@ -76,10 +77,15 @@ def generate_id_card(application: IDApplication) -> IDCard:
 # =====================================================
 # SAFE ENSURE (REBUILD IF MISSING)
 # =====================================================
+
 def ensure_id_card_exists(id_card):
     """
-    HARD self-healing generator.
-    Guarantees generation when possible.
+    FULL SELF-HEAL ENGINE
+
+    Repairs automatically:
+    - Missing passport on IDCard
+    - Missing image
+    - Broken cards
     """
 
     if not id_card:
@@ -89,35 +95,58 @@ def ensure_id_card_exists(id_card):
     if id_card.image and getattr(id_card.image, "name", None):
         return id_card.image.url
 
-    # Find approved application WITH passport
+    # Find approved application
     application = (
         IDApplication.objects
         .filter(student=id_card.student, status=IDApplication.STATUS_APPROVED)
-        .only("id", "passport")
         .first()
     )
 
     if not application:
-        print("ID GEN SKIPPED: No approved application")
+        print("ID HEAL: No approved application")
         return None
 
     if not application.passport:
-        print("ID GEN SKIPPED: No passport on approved application")
+        print("ID HEAL: Approved app has no passport")
         return None
 
-    # HARD generate inside atomic block
     try:
         with transaction.atomic():
-            result = build_id_card(id_card)
+
+            # -------------------------------------------------
+            # SELF-HEAL PASSPORT (Application ? IDCard)
+            # -------------------------------------------------
+            if not id_card.passport:
+                try:
+                    src = application.passport.file
+                    src.seek(0)
+
+                    filename = f"{id_card.student.matric_number or id_card.uid}_passport.jpg"
+
+                    id_card.passport.save(
+                        filename,
+                        ContentFile(src.read()),
+                        save=False,
+                    )
+                    id_card.save(update_fields=["passport"])
+                    print("ID HEAL: Passport copied")
+
+                except Exception as e:
+                    print("ID HEAL: Passport copy failed:", str(e))
+
+            # -------------------------------------------------
+            # GENERATE IMAGE
+            # -------------------------------------------------
+            build_id_card(id_card)
             id_card.refresh_from_db()
 
             if id_card.image and getattr(id_card.image, "name", None):
-                print("ID GENERATED OK:", id_card.id)
+                print("ID HEAL: ID generated OK")
                 return id_card.image.url
 
-            print("ID GENERATION FAILED: Image not saved")
+            print("ID HEAL: Generation failed")
             return None
 
     except Exception as e:
-        print("ID GENERATION ERROR:", str(e))
+        print("ID HEAL ERROR:", str(e))
         return None
