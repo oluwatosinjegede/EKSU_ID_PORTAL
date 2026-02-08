@@ -8,7 +8,6 @@ import qrcode
 
 from applications.models import IDApplication
 
-
 # =====================================================
 # SAFE FONT LOADER
 # =====================================================
@@ -166,42 +165,61 @@ def generate_id_card(idcard):
 
     card = apply_logo_watermark(card)
 
-    # -------------------------------------------------
-    # SAVE TO CLOUDINARY (FINAL FIX — NEVER FAIL)
-    # -------------------------------------------------
-    # -------------------------------------------------
-    # SAVE TO CLOUDINARY (FINAL PERMANENT FIX)
-    # -------------------------------------------------
     try:
         buffer = BytesIO()
         card.save(buffer, format="PNG")
-        buffer.seek(0)
+        png_bytes = buffer.getvalue()
 
         filename = f"{matric or idcard.uid}.png"
 
-        # DO NOT assign idcard.image manually
-        field_file = getattr(idcard, "image", None)
+        # Try Cloudinary
+        saved = _try_save_cloudinary(idcard, png_bytes, filename)
 
-        if not field_file:
-            print("GENERATOR: FIELD INIT")
-            idcard.save(update_fields=[])   # forces Django to attach FieldFile
-            field_file = idcard.image
-
-        field_file.save(
-            filename,
-            ContentFile(buffer.read()),
-            save=True
-        )
-
-        idcard.refresh_from_db()
-
-        if idcard.image and getattr(idcard.image, "public_id", None):
-            print("GENERATOR: SAVE OK", idcard.image.url)
+        if saved:
             return idcard.image.url
 
-        print("GENERATOR: SAVE FAILED - EMPTY FIELD")
-        return None
+        # -------------------------------------------------
+        # FAILOVER MODE (NO STORAGE)
+        # -------------------------------------------------
+        print("FAILOVER: USING MEMORY IMAGE")
+        return png_bytes   # return raw image bytes
 
     except Exception as e:
-        print("GENERATOR SAVE FAILED:", str(e))
+        print("GENERATOR FINAL FAILURE:", str(e))
         return None
+
+
+    # -------------------------------------------------
+    # SAVE TO CLOUDINARY (FINAL FIX — NEVER FAIL)
+    # -------------------------------------------------
+    # =====================================================
+    # SAVE (HYBRID CLOUDINARY + FAILOVER)
+    # =====================================================
+
+def _try_save_cloudinary(idcard, png_bytes, filename):
+    """
+    Attempt Cloudinary save.
+    Returns True if saved, False otherwise.
+    NEVER raises.
+    """
+    try:
+        field = getattr(idcard, "image", None)
+
+        # Field missing or not FileField
+        if not field or not hasattr(field, "save"):
+            print("CLOUDINARY: FIELD INVALID")
+            return False
+
+        field.save(filename, ContentFile(png_bytes), save=True)
+        idcard.refresh_from_db()
+
+        if idcard.image:
+            print("CLOUDINARY: SAVE OK", idcard.image.url)
+            return True
+
+        print("CLOUDINARY: EMPTY AFTER SAVE")
+        return False
+
+    except Exception as e:
+        print("CLOUDINARY SAVE FAILED:", str(e))
+        return False

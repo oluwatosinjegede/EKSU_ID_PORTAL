@@ -139,3 +139,6 @@ def ensure_id_card_exists(id_card):
     except Exception as e:
         print("ID HEAL ERROR:", str(e))
         return None
+
+    if not idcard.image:
+        generate_id_card(idcard)
