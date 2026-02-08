@@ -11,7 +11,7 @@ from applications.models import IDApplication
 # =====================================================
 def generate_id_card(application: IDApplication) -> IDCard:
     """
-    Create or reuse IDCard and generate image safely.
+    Create/reuse IDCard and generate image.
     Fully idempotent, Cloudinary-safe, race-condition safe.
     """
 
@@ -19,10 +19,10 @@ def generate_id_card(application: IDApplication) -> IDCard:
         raise ValueError("Invalid application or missing student")
 
     if application.status != IDApplication.STATUS_APPROVED:
-        raise ValueError("Cannot generate ID: application not approved")
+        raise ValueError("Application not approved")
 
     if not application.passport:
-        raise ValueError("Cannot generate ID: passport missing")
+        raise ValueError("Passport missing")
 
     student = application.student
 
@@ -34,7 +34,7 @@ def generate_id_card(application: IDApplication) -> IDCard:
         id_card, _ = IDCard.objects.get_or_create(student=student)
 
         # -------------------------------------------------
-        # Ensure passport exists on IDCard
+        # Ensure passport exists on IDCard (sync if missing)
         # -------------------------------------------------
         if not id_card.passport and application.passport:
             try:
@@ -51,22 +51,24 @@ def generate_id_card(application: IDApplication) -> IDCard:
                 id_card.save(update_fields=["passport"])
 
             except Exception:
-                # Do not crash if Cloudinary copy fails
-                pass
+                pass  # never crash service
 
         # -------------------------------------------------
-        # If image already exists ? return (idempotent)
+        # If image already exists ? idempotent return
         # -------------------------------------------------
         if id_card.image and getattr(id_card.image, "name", None):
             return id_card
 
         # -------------------------------------------------
+        # HARD CHECK — passport must exist before generation
+        # -------------------------------------------------
+        if not id_card.passport:
+            raise RuntimeError("IDCard passport missing after sync")
+
+        # -------------------------------------------------
         # Generate ID image
         # -------------------------------------------------
-        try:
-            build_id_card(id_card)
-        except Exception as e:
-            raise RuntimeError(f"ID generation failed: {e}")
+        build_id_card(id_card)
 
         id_card.refresh_from_db()
         return id_card
@@ -97,7 +99,7 @@ def ensure_id_card_exists(id_card: IDCard):
         return None
 
     try:
-        build_id_card(id_card)
+        generate_id_card(application)   # ? CALL SERVICE (not generator)
         id_card.refresh_from_db()
     except Exception:
         return None
