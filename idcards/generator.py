@@ -169,6 +169,9 @@ def generate_id_card(idcard):
     # -------------------------------------------------
     # SAVE TO CLOUDINARY (FINAL FIX — NEVER FAIL)
     # -------------------------------------------------
+    # -------------------------------------------------
+    # SAVE TO CLOUDINARY (TRUE FINAL FIX)
+    # -------------------------------------------------
     try:
         buffer = BytesIO()
         card.save(buffer, format="PNG")
@@ -176,9 +179,11 @@ def generate_id_card(idcard):
 
         filename = f"{matric or idcard.uid}.png"
 
-        # IMPORTANT: use model field descriptor, NOT instance value
-        type(idcard).image.save(
-            idcard,
+        # Ensure field instance exists (CRITICAL)
+        if idcard.image is None:
+            idcard.image = ""
+
+        idcard.image.save(
             filename,
             ContentFile(buffer.read()),
             save=True
@@ -196,5 +201,3 @@ def generate_id_card(idcard):
     except Exception as e:
         print("GENERATOR SAVE FAILED:", str(e))
         return None
-
-
