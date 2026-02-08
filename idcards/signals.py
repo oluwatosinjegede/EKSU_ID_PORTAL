@@ -10,39 +10,25 @@ from applications.models import IDApplication
 @receiver(post_save, sender=IDCard)
 def ensure_card_image(sender, instance, created, update_fields=None, **kwargs):
     """
-    SELF-HEALING ID GENERATOR (Production Safe)
+    Self healing ID generator.
 
-    Guarantees:
-    - Runs AFTER DB commit (no race condition)
-    - No recursion loop
-    - Idempotent (safe multiple executions)
-    - Runs ONLY when image missing
-    - Waits until approved application + passport exist
-    - Works for:
-        • Approval flow
-        • Passport copy
-        • Admin edits
-        • Imports / recovery
-        • Broken image rebuild
+    Runs only when:
+    - Image is missing
+    - Approved application with passport exists
+    - After database commit
+    - Idempotent and safe
     """
 
-    # -------------------------------------------------
-    # STOP if image already exists
-    # -------------------------------------------------
+    # Stop if image already exists
     image_field = getattr(instance, "image", None)
     if image_field and getattr(image_field, "name", None):
         return
 
-    # -------------------------------------------------
-    # STOP loop when generator just saved the image
-    # -------------------------------------------------
+    # Stop recursion when generator just saved image
     if update_fields and "image" in update_fields:
         return
 
-    # -------------------------------------------------
-    # Ensure APPROVED application + passport exist
-    # (prevents useless generator calls)
-    # -------------------------------------------------
+    # Ensure approved application with passport exists
     application = IDApplication.objects.filter(
         student=instance.student,
         status=IDApplication.STATUS_APPROVED,
@@ -51,14 +37,10 @@ def ensure_card_image(sender, instance, created, update_fields=None, **kwargs):
     if not application or not application.passport:
         return
 
-    # -------------------------------------------------
-    # Run AFTER DB commit (prevents recursion & race)
-    # -------------------------------------------------
     def _generate():
         try:
             ensure_id_card_exists(instance)
         except Exception:
-            # Never crash request / admin / migrations
             pass
 
     try:
