@@ -5,7 +5,6 @@ from idcards.models import IDCard
 from idcards.generator import generate_id_card as build_id_card
 from applications.models import IDApplication
 
-
 # =====================================================
 # MAIN SERVICE — CREATE / GENERATE ID SAFELY
 # =====================================================
@@ -77,31 +76,48 @@ def generate_id_card(application: IDApplication) -> IDCard:
 # =====================================================
 # SAFE ENSURE (REBUILD IF MISSING)
 # =====================================================
-def ensure_id_card_exists(id_card: IDCard):
+def ensure_id_card_exists(id_card):
     """
-    Ensure ID image exists. Rebuild if missing.
-    Safe for admin, signals, background jobs.
+    HARD self-healing generator.
+    Guarantees generation when possible.
     """
 
     if not id_card:
         return None
 
+    # Already generated
     if id_card.image and getattr(id_card.image, "name", None):
         return id_card.image.url
 
-    # Must have approved application
-    application = IDApplication.objects.filter(
-        student=id_card.student,
-        status=IDApplication.STATUS_APPROVED,
-    ).first()
+    # Find approved application WITH passport
+    application = (
+        IDApplication.objects
+        .filter(student=id_card.student, status=IDApplication.STATUS_APPROVED)
+        .only("id", "passport")
+        .first()
+    )
 
-    if not application or not application.passport:
+    if not application:
+        print("ID GEN SKIPPED: No approved application")
         return None
 
+    if not application.passport:
+        print("ID GEN SKIPPED: No passport on approved application")
+        return None
+
+    # HARD generate inside atomic block
     try:
-        generate_id_card(application)   # ? CALL SERVICE (not generator)
-        id_card.refresh_from_db()
-    except Exception:
-        return None
+        with transaction.atomic():
+            result = build_id_card(id_card)
+            id_card.refresh_from_db()
 
-    return getattr(id_card.image, "url", None)
+            if id_card.image and getattr(id_card.image, "name", None):
+                print("ID GENERATED OK:", id_card.id)
+                return id_card.image.url
+
+            print("ID GENERATION FAILED: Image not saved")
+            return None
+
+    except Exception as e:
+        print("ID GENERATION ERROR:", str(e))
+        return None

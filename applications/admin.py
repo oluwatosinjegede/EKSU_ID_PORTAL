@@ -60,7 +60,7 @@ def approve_application(modeladmin, request, queryset):
                 # -----------------------------------------
                 # Generate ID (SERVICE = safe + idempotent)
                 # -----------------------------------------
-                generate_id_card(application)
+                transaction.on_commit(lambda: generate_id_card(application))
 
                 approved += 1
 
