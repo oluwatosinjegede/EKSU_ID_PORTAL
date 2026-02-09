@@ -53,26 +53,34 @@ def _serve_id_image(id_card, download=False):
 # =====================================================
 # VERIFY ID (Public via QR)
 # =====================================================
-
-def verify_id(request, uid):
-    """
-    Public QR verification page.
-    Shows:
-    - Validity status
-    - Student info
-    - ID card image (Cloudinary or Failover)
-    """
+def verify_id(request, uid, token):
 
     id_card = get_object_or_404(IDCard, uid=uid)
 
-    # Self-heal if missing
+    # -------------------------
+    # TOKEN VALIDATION (ANTI-FORGE)
+    # -------------------------
+    if id_card.verify_token != token:
+        return render(request, "idcards/verify_invalid.html", {"valid": False})
+
+    # -------------------------
+    # REVOKED / DISABLED CHECK
+    # -------------------------
+    if not id_card.is_active or id_card.is_revoked:
+        return render(request, "idcards/verify_revoked.html", {
+            "reason": id_card.revoked_reason
+        })
+
+    # -------------------------
+    # SELF HEAL
+    # -------------------------
     ensure_id_card_exists(id_card)
     id_card.refresh_from_db()
 
     student = id_card.student
 
     # -------------------------
-    # Determine IMAGE SOURCE
+    # IMAGE SOURCE
     # -------------------------
     image_url = None
     image_stream_url = None
@@ -80,21 +88,15 @@ def verify_id(request, uid):
     if id_card.image and getattr(id_card.image, "url", None):
         image_url = id_card.image.url
     else:
-        # Failover streaming
         image_stream_url = f"/stream/{id_card.uid}/"
 
-    context = {
+    return render(request, "idcards/verify.html", {
         "valid": True,
         "student": student,
         "id_card": id_card,
         "image_url": image_url,
         "image_stream_url": image_stream_url,
-    }
-
-    return render(request, "idcards/verify.html", context)
-
-    if not id_card.student:
-    return render(request, "idcards/verify_invalid.html", {"valid": False})
+    })
 
 
 # =====================================================
