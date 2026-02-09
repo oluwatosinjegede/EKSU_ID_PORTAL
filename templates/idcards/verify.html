@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}ID Verification{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto mt-10 bg-white shadow rounded-xl p-8 text-center">
+
+    <!-- STATUS -->
+    <div class="mb-6">
+        <div class="text-2xl font-bold text-green-700">VALID ID CARD</div>
+        <p class="text-gray-600 text-sm">This student ID is authentic</p>
+    </div>
+
+    <!-- PHOTO -->
+    {% if image_url %}
+        <img src="{{ image_url }}" class="mx-auto rounded border mb-6">
+    {% elif image_stream_url %}
+        <img src="{{ image_stream_url }}" class="mx-auto rounded border mb-6">
+    {% endif %}
+
+    <!-- STUDENT INFO -->
+    <div class="text-left space-y-2 text-sm">
+
+        <div><strong>Name:</strong>
+            {{ student.first_name }} {{ student.middle_name }} {{ student.last_name }}
+        </div>
+
+        <div><strong>Matric No:</strong> {{ student.matric_number }}</div>
+
+        <div><strong>Department:</strong> {{ student.department }}</div>
+
+        <div><strong>Level:</strong> {{ student.level }}</div>
+
+        <div><strong>Phone:</strong> {{ student.phone }}</div>
+
+        <div><strong>ID Issued:</strong> {{ id_card.created_at|date:"M d, Y" }}</div>
+
+        <div class="pt-4 text-green-700 font-semibold">
+            ? Identity Confirmed
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
