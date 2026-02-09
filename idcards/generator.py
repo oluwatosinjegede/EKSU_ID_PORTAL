@@ -8,6 +8,7 @@ import qrcode
 
 from applications.models import IDApplication
 
+
 # =====================================================
 # SAFE FONT LOADER
 # =====================================================
@@ -26,21 +27,27 @@ def load_fonts():
 
 
 # =====================================================
-# QR CODE
+# QR IMAGE BUILDER
 # =====================================================
+def create_qr_code(data):
+    qr = qrcode.QRCode(box_size=6, border=2)
+    qr.add_data(data)
+    qr.make(fit=True)
+    return qr.make_image(fill_color="black", back_color="white").convert("RGB")
+
+
 # =====================================================
-# BUILD ABSOLUTE VERIFY URL (NEVER LOCALHOST IN PROD)
+# BUILD VERIFY URL (NO LOCALHOST IN PROD)
 # =====================================================
 def build_verify_url(idcard, request=None):
     """
     Priority:
     1. Current request domain (most accurate)
     2. SITE_URL from environment
-    3. Fallback to empty (never localhost in production)
     """
 
     try:
-        # Use request host if available (best for Railway / proxies)
+        # Use real request domain if provided
         if request:
             scheme = "https" if request.is_secure() else "http"
             host = request.get_host()
@@ -54,11 +61,17 @@ def build_verify_url(idcard, request=None):
 
         base = base.rstrip("/")
 
+        # Safety: never allow localhost in production
+        if "localhost" in base or "127.0.0.1" in base:
+            print("QR: BLOCKED LOCALHOST DOMAIN")
+            return None
+
         return f"{base}/verify/{idcard.uid}/"
 
     except Exception as e:
         print("QR URL BUILD FAILED:", str(e))
         return None
+
 
 # =====================================================
 # WATERMARK
@@ -104,7 +117,7 @@ def get_student_details(student):
 
 
 # =====================================================
-# LOAD PASSPORT FROM CLOUDINARY URL
+# LOAD PASSPORT FROM CLOUDINARY
 # =====================================================
 def load_passport(student):
     app = IDApplication.objects.filter(
@@ -113,12 +126,11 @@ def load_passport(student):
     ).first()
 
     if not app or not app.passport:
-        print("GENERATOR: NO PASSPORT IN APPLICATION")
+        print("GENERATOR: NO PASSPORT")
         return None
 
     try:
-        url = app.passport.url
-        response = requests.get(url, timeout=15)
+        response = requests.get(app.passport.url, timeout=15)
 
         if response.status_code != 200:
             print("GENERATOR: PASSPORT DOWNLOAD FAILED")
@@ -133,32 +145,26 @@ def load_passport(student):
 
 
 # =====================================================
-# MAIN GENERATOR (CLOUDINARY SAFE)
+# MAIN GENERATOR
 # =====================================================
-def generate_id_card(idcard):
+def generate_id_card(idcard, request=None):
 
     print("GENERATOR: START")
 
     if not idcard:
         return None
 
-    # Idempotent guard
     if idcard.image and getattr(idcard.image, "public_id", None):
         return idcard.image.url
 
     student = getattr(idcard, "student", None)
     if not student:
-        print("GENERATOR: NO STUDENT")
         return None
 
     passport = load_passport(student)
     if not passport:
-        print("GENERATOR: NO PASSPORT FOUND")
         return None
 
-    # -------------------------------------------------
-    # BUILD IMAGE
-    # -------------------------------------------------
     width, height = 1010, 640
     card = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(card)
@@ -178,12 +184,21 @@ def generate_id_card(idcard):
     draw.text((320, 380), f"Level: {level}", font=font_mid, fill="black")
     draw.text((320, 440), f"Phone: {phone}", font=font_mid, fill="black")
 
+    # =====================================================
+    # QR CODE (FIXED DOMAIN)
+    # =====================================================
     try:
-        verify_url = f"{settings.SITE_URL}/verify/{idcard.uid}/"
-        qr_img = create_qr_code(verify_url).resize((160, 160))
-        card.paste(qr_img, (820, 380))
-    except Exception:
-        pass
+        verify_url = build_verify_url(idcard, request)
+
+        if verify_url:
+            qr_img = create_qr_code(verify_url).resize((160, 160))
+            card.paste(qr_img, (820, 380))
+            print("QR:", verify_url)
+        else:
+            print("QR: NOT GENERATED")
+
+    except Exception as e:
+        print("QR FAILED:", str(e))
 
     draw.rectangle((0, height - 80, width, height), fill=(0, 102, 0))
     draw.text((40, height - 60), "Property of EKSU", font=font_small, fill="white")
@@ -197,40 +212,24 @@ def generate_id_card(idcard):
 
         filename = f"{matric or idcard.uid}.png"
 
-        # Try Cloudinary
-        saved = _try_save_cloudinary(idcard, png_bytes, filename)
-
-        if saved:
+        if _try_save_cloudinary(idcard, png_bytes, filename):
             return idcard.image.url
 
-        # -------------------------------------------------
-        # FAILOVER MODE (NO STORAGE)
-        # -------------------------------------------------
         print("FAILOVER: USING MEMORY IMAGE")
-        return png_bytes   # return raw image bytes
+        return png_bytes
 
     except Exception as e:
-        print("GENERATOR FINAL FAILURE:", str(e))
+        print("GENERATOR FAILURE:", str(e))
         return None
 
 
-    # -------------------------------------------------
-    # SAVE TO CLOUDINARY (FINAL FIX — NEVER FAIL)
-    # -------------------------------------------------
-    # =====================================================
-    # SAVE (HYBRID CLOUDINARY + FAILOVER)
-    # =====================================================
-
+# =====================================================
+# CLOUDINARY SAVE
+# =====================================================
 def _try_save_cloudinary(idcard, png_bytes, filename):
-    """
-    Attempt Cloudinary save.
-    Returns True if saved, False otherwise.
-    NEVER raises.
-    """
     try:
         field = getattr(idcard, "image", None)
 
-        # Field missing or not FileField
         if not field or not hasattr(field, "save"):
             print("CLOUDINARY: FIELD INVALID")
             return False
@@ -238,12 +237,7 @@ def _try_save_cloudinary(idcard, png_bytes, filename):
         field.save(filename, ContentFile(png_bytes), save=True)
         idcard.refresh_from_db()
 
-        if idcard.image:
-            print("CLOUDINARY: SAVE OK", idcard.image.url)
-            return True
-
-        print("CLOUDINARY: EMPTY AFTER SAVE")
-        return False
+        return bool(idcard.image)
 
     except Exception as e:
         print("CLOUDINARY SAVE FAILED:", str(e))
