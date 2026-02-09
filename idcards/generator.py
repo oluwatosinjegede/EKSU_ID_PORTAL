@@ -39,49 +39,14 @@ def create_qr_code(data):
 # =====================================================
 # BUILD VERIFY URL (NO LOCALHOST IN PROD)
 # =====================================================
-def build_verify_url(idcard, request=None):
-    """
-    Build secure verification URL with token.
-    Priority:
-    1. Current request domain (best for Railway / proxy)
-    2. SITE_URL env
-    """
+def build_verify_url(idcard):
+    base = settings.SITE_URL.rstrip("/")
 
-    try:
-        # ---- Detect domain ----
-        if request:
-            scheme = "https" if request.is_secure() else "http"
-            host = request.get_host()
-            base = f"{scheme}://{host}"
-        else:
-            base = getattr(settings, "SITE_URL", "").strip()
+    if not idcard.verify_token:
+        idcard.generate_token()
+        idcard.save(update_fields=["verify_token"])
 
-        if not base:
-            print("QR: SITE_URL missing")
-            return None
-
-        base = base.rstrip("/")
-
-        # Block localhost in production
-        if "localhost" in base or "127.0.0.1" in base:
-            print("QR: BLOCKED LOCALHOST DOMAIN")
-            return None
-
-        # ---- TOKENIZED SECURE VERIFY URL ----
-        token = getattr(idcard, "verify_token", None)
-
-        if token:
-            url = f"{base}/verify/{idcard.uid}/{token}/"
-        else:
-            # Backward compatibility (old cards)
-            url = f"{base}/verify/{idcard.uid}/"
-
-        return url
-
-    except Exception as e:
-        print("QR URL BUILD FAILED:", str(e))
-        return None
-
+    return f"{base}/verify/{idcard.uid}/{idcard.verify_token}/"
 
 # =====================================================
 # WATERMARK

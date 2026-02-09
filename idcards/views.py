@@ -55,45 +55,45 @@ def _serve_id_image(id_card, download=False):
 # =====================================================
 
 def verify_id(request, uid, token=None):
-    """
-    Secure ID verification endpoint.
-
-    Supports:
-    - Token validation (anti-forgery)
-    - Revoked / disabled detection
-    - Self-healing ID rebuild
-    - Cloudinary image OR failover stream
-    """
-
     id_card = get_object_or_404(IDCard, uid=uid)
 
-    # -------------------------------------------------
-    # TOKEN VALIDATION (ANTI-FORGE)
-    # -------------------------------------------------
-    if token:
-        stored = str(getattr(id_card, "verify_token", "") or "")
-        if stored != str(token):
-            return render(
-                request,
-                "idcards/verify_invalid.html",
-                {"valid": False},
-                status=403,
-            )
+    # If secure token exists ? enforce validation
+    if id_card.verify_token:
+        if not token or token != id_card.verify_token:
+            return render(request, "idcards/verify_invalid.html", {"valid": False})
 
-    # -------------------------------------------------
-    # REVOKED / DISABLED CHECK
-    # -------------------------------------------------
-    if not getattr(id_card, "is_active", True) or getattr(id_card, "is_revoked", False):
-        return render(
-            request,
-            "idcards/verify_revoked.html",
-            {
-                "valid": False,
-                "reason": getattr(id_card, "revoked_reason", "Card revoked"),
-                "id_card": id_card,
-            },
-            status=410,
-        )
+    # revoked / disabled
+    if not id_card.is_active or id_card.is_revoked:
+        return render(request, "idcards/verify_revoked.html", {
+            "reason": id_card.revoked_reason
+        })
+
+    if id_card.is_expired():
+        return render(request, "idcards/verify_invalid.html", {
+            "valid": False,
+            "reason": "Expired"
+        })
+
+    ensure_id_card_exists(id_card)
+    id_card.refresh_from_db()
+
+    student = id_card.student
+
+    image_url = None
+    image_stream_url = None
+
+    if id_card.image and getattr(id_card.image, "url", None):
+        image_url = id_card.image.url
+    else:
+        image_stream_url = f"/idcards/stream/{id_card.uid}/"
+
+    return render(request, "idcards/verify.html", {
+        "valid": True,
+        "student": student,
+        "id_card": id_card,
+        "image_url": image_url,
+        "image_stream_url": image_stream_url,
+    })
 
     # -------------------------------------------------
     # SELF-HEAL (Rebuild missing image automatically)

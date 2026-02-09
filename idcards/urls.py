@@ -5,19 +5,11 @@ app_name = "idcards"
 
 urlpatterns = [
 
-    # NEW — Secure token verification
-    path(
-        "verify/<uuid:uid>/<str:token>/",
-        verify_id,
-        name="verify_id",
-    ),
+    # NEW secure URL (token required)
+    path("verify/<uuid:uid>/<str:token>/", verify_id, name="verify_id_secure"),
 
-    # BACKWARD COMPAT — old QR (no token)
-    path(
-        "verify/<uuid:uid>/",
-        verify_id,
-        name="verify_id_legacy",
-    ),
+    # LEGACY URL (no token ? still works)
+    path("verify/<uuid:uid>/", verify_id, name="verify_id"),
 
     path(
         "verify/<uuid:uid>/<str:token>/download/",
