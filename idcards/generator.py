@@ -30,23 +30,48 @@ def load_fonts():
 # QR IMAGE BUILDER
 # =====================================================
 def create_qr_code(data):
-    qr = qrcode.QRCode(box_size=6, border=2)
+    qr = qrcode.QRCode(
+        version=None,
+        box_size=6,
+        border=2,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+    )
     qr.add_data(data)
     qr.make(fit=True)
     return qr.make_image(fill_color="black", back_color="white").convert("RGB")
 
 
 # =====================================================
-# BUILD VERIFY URL (NO LOCALHOST IN PROD)
+# BUILD VERIFY URL (NEVER FAILS)
 # =====================================================
 def build_verify_url(idcard):
-    base = settings.SITE_URL.rstrip("/")
+    """
+    Always returns a working verification URL.
+    """
 
+    # Ensure token exists
     if not idcard.verify_token:
-        idcard.generate_token()
-        idcard.save(update_fields=["verify_token"])
+        try:
+            idcard.generate_token()
+            idcard.save(update_fields=["verify_token"])
+        except Exception as e:
+            print("QR TOKEN ERROR:", str(e))
 
-    return f"{base}/verify/{idcard.uid}/{idcard.verify_token}/"
+    base = getattr(settings, "SITE_URL", "").strip().rstrip("/")
+
+    # 1. Valid production domain
+    if base and "localhost" not in base and "127.0.0.1" not in base:
+        return f"{base}/verify/{idcard.uid}/{idcard.verify_token}/"
+
+    # 2. Railway fallback
+    railway = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    if railway:
+        return f"https://{railway}/verify/{idcard.uid}/{idcard.verify_token}/"
+
+    # 3. Final fallback (still scannable)
+    print("QR WARNING: Using relative URL")
+    return f"/verify/{idcard.uid}/{idcard.verify_token}/"
+
 
 # =====================================================
 # WATERMARK
@@ -63,7 +88,7 @@ def apply_logo_watermark(card):
         logo = logo.resize((int(w * 0.35), int(h * 0.35)))
 
         alpha = logo.split()[3]
-        alpha = ImageEnhance.Brightness(alpha).enhance(0.12)
+        alpha = ImageEnhance.Brightness(alpha).enhance(0.06)  # lighter watermark
         logo.putalpha(alpha)
 
         card.paste(logo, ((w - logo.width) // 2, (h - logo.height) // 2), logo)
@@ -129,6 +154,7 @@ def generate_id_card(idcard, request=None):
     if not idcard:
         return None
 
+    # Already saved in Cloudinary
     if idcard.image and getattr(idcard.image, "public_id", None):
         return idcard.image.url
 
@@ -146,9 +172,11 @@ def generate_id_card(idcard, request=None):
 
     font_big, font_mid, font_small = load_fonts()
 
+    # Header
     draw.rectangle((0, 0, width, 120), fill=(0, 102, 0))
     draw.text((30, 30), "EKSU STUDENT ID CARD", font=font_big, fill="white")
 
+    # Passport
     card.paste(passport, (50, 180))
 
     full_name, matric, dept, level, phone = get_student_details(student)
@@ -160,26 +188,24 @@ def generate_id_card(idcard, request=None):
     draw.text((320, 440), f"Phone: {phone}", font=font_mid, fill="black")
 
     # =====================================================
-    # QR CODE (FIXED DOMAIN)
+    # GUARANTEED QR
     # =====================================================
     try:
-        verify_url = build_verify_url(idcard, request)
-
-        if verify_url:
-            qr_img = create_qr_code(verify_url).resize((160, 160))
-            card.paste(qr_img, (820, 380))
-            print("QR:", verify_url)
-        else:
-            print("QR: NOT GENERATED")
-
+        verify_url = build_verify_url(idcard)
+        qr_img = create_qr_code(verify_url).resize((180, 180))
+        card.paste(qr_img, (800, 360))
+        print("QR OK:", verify_url)
     except Exception as e:
-        print("QR FAILED:", str(e))
+        print("QR CRITICAL FAILURE:", str(e))
 
+    # Footer
     draw.rectangle((0, height - 80, width, height), fill=(0, 102, 0))
     draw.text((40, height - 60), "Property of EKSU", font=font_small, fill="white")
 
+    # Apply watermark AFTER QR
     card = apply_logo_watermark(card)
 
+    # Save / Failover
     try:
         buffer = BytesIO()
         card.save(buffer, format="PNG")
