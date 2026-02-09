@@ -1,4 +1,6 @@
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 from students.models import Student
 from cloudinary.models import CloudinaryField
 import uuid
@@ -69,20 +71,17 @@ class IDCard(models.Model):
         help_text="Secure token embedded in QR to prevent forgery",
     )
 
-    is_active = models.BooleanField(
-        default=True,
-        help_text="Disable to invalidate card without deleting",
-    )
+    is_active = models.BooleanField(default=True)
+    is_revoked = models.BooleanField(default=False)
+    revoked_reason = models.CharField(max_length=255, blank=True, null=True)
 
-    is_revoked = models.BooleanField(
-        default=False,
-        help_text="Revoked cards cannot be verified",
-    )
-
-    revoked_reason = models.CharField(
-        max_length=255,
+    # =================================================
+    # EXPIRY SYSTEM (NEW)
+    # =================================================
+    expires_at = models.DateTimeField(
         blank=True,
         null=True,
+        help_text="Card expiry date",
     )
 
     # =================================================
@@ -96,15 +95,34 @@ class IDCard(models.Model):
         ]
 
     # =================================================
-    # TOKEN GENERATOR
+    # AUTO TOKEN + AUTO EXPIRY ON SAVE
     # =================================================
-    def generate_token(self, save=True):
-        """
-        Generates cryptographically secure QR verification token.
-        """
+    def save(self, *args, **kwargs):
+
+        # Auto generate secure token
+        if not self.verify_token:
+            self.verify_token = secrets.token_urlsafe(32)
+
+        # Auto set expiry (default 4 years)
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(days=365 * 4)
+
+        super().save(*args, **kwargs)
+
+    # =================================================
+    # TOKEN ROTATION (OPTIONAL SECURITY)
+    # =================================================
+    def regenerate_token(self):
         self.verify_token = secrets.token_urlsafe(32)
-        if save:
-            self.save(update_fields=["verify_token"])
+        self.save(update_fields=["verify_token"])
+
+    # =================================================
+    # EXPIRY CHECK (FIXES YOUR CRASH)
+    # =================================================
+    def is_expired(self):
+        if not self.expires_at:
+            return False
+        return timezone.now() > self.expires_at
 
     # =================================================
     # STATUS HELPERS
@@ -119,10 +137,7 @@ class IDCard(models.Model):
 
     @property
     def is_valid(self):
-        """
-        True only if card is active and not revoked.
-        """
-        return self.is_active and not self.is_revoked
+        return self.is_active and not self.is_revoked and not self.is_expired()
 
     # =================================================
     # NAME BUILDER (SAFE)
