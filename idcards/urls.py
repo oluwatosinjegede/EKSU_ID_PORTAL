@@ -17,11 +17,10 @@ urlpatterns = [
     # Opens ID in browser (Cloudinary OR Failover)
     # =====================================================
     path(
-        "verify/<uuid:uid>/",
+        "verify/<uuid:uid>/<str:token>/",
         verify_id,
         name="verify_id",
     ),
-
     # =====================================================
     # PUBLIC — FORCE DOWNLOAD
     # =====================================================

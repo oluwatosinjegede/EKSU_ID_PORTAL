@@ -53,14 +53,16 @@ def _serve_id_image(id_card, download=False):
 # =====================================================
 # VERIFY ID (Public via QR)
 # =====================================================
-def verify_id(request, uid, token):
+
+def verify_id(request, uid, token=None):
 
     id_card = get_object_or_404(IDCard, uid=uid)
 
     # -------------------------
     # TOKEN VALIDATION (ANTI-FORGE)
     # -------------------------
-    if id_card.verify_token != token:
+
+    if token and id_card.verify_token != token:
         return render(request, "idcards/verify_invalid.html", {"valid": False})
 
     # -------------------------

@@ -41,13 +41,14 @@ def create_qr_code(data):
 # =====================================================
 def build_verify_url(idcard, request=None):
     """
+    Build secure verification URL with token.
     Priority:
-    1. Current request domain (most accurate)
-    2. SITE_URL from environment
+    1. Current request domain (best for Railway / proxy)
+    2. SITE_URL env
     """
 
     try:
-        # Use real request domain if provided
+        # ---- Detect domain ----
         if request:
             scheme = "https" if request.is_secure() else "http"
             host = request.get_host()
@@ -61,12 +62,21 @@ def build_verify_url(idcard, request=None):
 
         base = base.rstrip("/")
 
-        # Safety: never allow localhost in production
+        # Block localhost in production
         if "localhost" in base or "127.0.0.1" in base:
             print("QR: BLOCKED LOCALHOST DOMAIN")
             return None
 
-        return f"{base}/verify/{idcard.uid}/"
+        # ---- TOKENIZED SECURE VERIFY URL ----
+        token = getattr(idcard, "verify_token", None)
+
+        if token:
+            url = f"{base}/verify/{idcard.uid}/{token}/"
+        else:
+            # Backward compatibility (old cards)
+            url = f"{base}/verify/{idcard.uid}/"
+
+        return url
 
     except Exception as e:
         print("QR URL BUILD FAILED:", str(e))
