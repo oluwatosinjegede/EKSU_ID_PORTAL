@@ -4,6 +4,9 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
 
+# IMPORTANT — import verify view
+from idcards.views import verify_id
+
 
 urlpatterns = [
 
@@ -13,7 +16,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
 
     # =====================================================
-    # ACCOUNTS (ROOT)
+    # ACCOUNTS
     # =====================================================
     path(
         "",
@@ -29,27 +32,37 @@ urlpatterns = [
     ),
 
     # =====================================================
-    # IDCARDS (FAILOVER READY)
-    # Handles:
-    #   /idcards/verify/<uid>/
-    #   /idcards/verify/<uid>/download/
-    #   /idcards/my-id/
+    # GLOBAL QR VERIFY (PRIMARY — WITH TOKEN)
+    # This is what QR MUST use
     # =====================================================
     path(
-        "idcards/",
-        include(("idcards.urls", "idcards"), namespace="idcards"),
+        "verify/<uuid:uid>/<str:token>/",
+        verify_id,
+        name="verify_id",
     ),
 
     # =====================================================
-    # GLOBAL VERIFY SHORT URL (QR CODE SAFE)
-    # Allows QR to work without /idcards/ prefix
+    # OPTIONAL SHORT VERIFY (NO TOKEN ? redirects to app)
+    # Keeps backward compatibility
     # =====================================================
     path(
         "verify/<uuid:uid>/",
         RedirectView.as_view(
-            pattern_name="idcards:verify_id",
+            pattern_name="idcards:verify_id_no_token",
             permanent=False,
         ),
+    ),
+
+    # =====================================================
+    # IDCARDS APP
+    # Handles:
+    #   /idcards/verify/<uid>/<token>/
+    #   /idcards/my-id/
+    #   /idcards/stream/
+    # =====================================================
+    path(
+        "idcards/",
+        include(("idcards.urls", "idcards"), namespace="idcards"),
     ),
 
     # =====================================================
@@ -66,10 +79,10 @@ urlpatterns = [
 
 
 # =====================================================
-# MEDIA FILES (DEV ONLY — ignored in production)
+# MEDIA (DEV ONLY)
 # =====================================================
 if settings.DEBUG:
     urlpatterns += static(
         settings.MEDIA_URL,
-        document_root=settings.MEDIA_ROOT
+        document_root=settings.MEDIA_ROOT,
     )

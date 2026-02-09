@@ -6,7 +6,8 @@ app_name = "idcards"
 urlpatterns = [
 
     # NEW secure URL (token required)
-    path("verify/<uuid:uid>/<str:token>/", verify_id, name="verify_id_secure"),
+    #path("verify/<uuid:uid>/<str:token>/", verify_id, name="verify_id_secure"),
+    path("verify/<uuid:uid>/<str:token>/", verify_id, name="verify_id_token"),
 
     # LEGACY URL (no token ? still works)
     path("verify/<uuid:uid>/", verify_id, name="verify_id"),
@@ -20,3 +21,4 @@ urlpatterns = [
     path("stream/<uuid:uid>/", view_id_card, name="view_id_stream"),
     path("stream/<uuid:uid>/download/", download_id_stream, name="download_id_stream"),
 ]
+
