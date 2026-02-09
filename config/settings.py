@@ -13,6 +13,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # --------------------------------------------------
 SITE_URL = os.getenv("SITE_URL", "http://localhost:8000").rstrip("/")
 
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
 # --------------------------------------------------
 # Core settings
 # --------------------------------------------------

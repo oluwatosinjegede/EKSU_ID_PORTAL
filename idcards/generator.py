@@ -28,12 +28,37 @@ def load_fonts():
 # =====================================================
 # QR CODE
 # =====================================================
-def create_qr_code(data):
-    qr = qrcode.QRCode(box_size=6, border=2)
-    qr.add_data(data)
-    qr.make(fit=True)
-    return qr.make_image(fill_color="black", back_color="white").convert("RGB")
+# =====================================================
+# BUILD ABSOLUTE VERIFY URL (NEVER LOCALHOST IN PROD)
+# =====================================================
+def build_verify_url(idcard, request=None):
+    """
+    Priority:
+    1. Current request domain (most accurate)
+    2. SITE_URL from environment
+    3. Fallback to empty (never localhost in production)
+    """
 
+    try:
+        # Use request host if available (best for Railway / proxies)
+        if request:
+            scheme = "https" if request.is_secure() else "http"
+            host = request.get_host()
+            base = f"{scheme}://{host}"
+        else:
+            base = getattr(settings, "SITE_URL", "").strip()
+
+        if not base:
+            print("QR: SITE_URL missing")
+            return None
+
+        base = base.rstrip("/")
+
+        return f"{base}/verify/{idcard.uid}/"
+
+    except Exception as e:
+        print("QR URL BUILD FAILED:", str(e))
+        return None
 
 # =====================================================
 # WATERMARK
